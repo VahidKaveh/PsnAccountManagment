@@ -1,0 +1,211 @@
+﻿@page "{id:int}"
+@model PsnAccountManager.Admin.Panel.Pages.ParsingProfiles.EditModel
+@using PsnAccountManager.Shared.Enums
+@{
+    ViewData["Title"] = "Edit Profile";
+}
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    var alertClass = Model.StatusMessage.StartsWith("Error") ? "alert-danger" : "alert-success";
+    <div class="alert @alertClass alert-dismissible">
+        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+        <h5><i class="icon @(alertClass == "alert-success" ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill")"></i> @(alertClass == "alert-success" ? "Success!" : "Error!")</h5>
+        @Model.StatusMessage
+    </div>
+}
+
+<!-- Main form that wraps everything -->
+<form method="post">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+    <input type="hidden" asp-for="ProfileVM.Id" />
+
+    <div class="card card-primary card-outline">
+        <div class="card-header"><h3 class="card-title">Edit Profile: @Model.ProfileVM.Name</h3></div>
+        <div class="card-body">
+            <div class="form-group">
+                <label asp-for="ProfileVM.Name" class="form-label"></label>
+                <input asp-for="ProfileVM.Name" class="form-control" />
+                <span asp-validation-for="ProfileVM.Name" class="text-danger"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-info card-outline">
+        <div class="card-header"><h3 class="card-title">Parsing Rules</h3></div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Field Type</th>
+                        <th>Regex Pattern</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rules-table-body">
+                    @for (int i = 0; i < Model.ProfileVM.Rules.Count; i++)
+                    {
+                        <tr>
+                            <td>
+                                <input type="hidden" asp-for="ProfileVM.Rules[i].Id" />
+                                <input type="hidden" asp-for="ProfileVM.Rules[i].ParsingProfileId" />
+                                <input type="hidden" asp-for="ProfileVM.Rules[i].FieldType" />
+                                <strong>@Model.ProfileVM.Rules[i].FieldType</strong>
+                            </td>
+                            <td>
+                                <input asp-for="ProfileVM.Rules[i].RegexPattern" class="form-control" />
+                                <span asp-validation-for="ProfileVM.Rules[i].RegexPattern" class="text-danger"></span>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-danger btn-sm delete-rule-btn">
+                                    <i class="bi bi-trash-fill"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card card-success card-outline">
+        <div class="card-header"><h3 class="card-title">Add New Rule</h3></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="newRuleFieldType">Field Type</label>
+                    <select id="newRuleFieldType" class="form-control">
+                        <option value="">-- Select --</option>
+                        @foreach (var fieldType in Enum.GetValues<ParsedFieldType>())
+                        {
+                            <option value="@fieldType">@fieldType.ToString()</option>
+                        }
+                    </select>
+                    <span id="newRuleFieldType-validation" class="text-danger d-block mt-1"></span>
+                </div>
+                <div class="col-md-7">
+                    <label for="newRuleRegex">Regex Pattern</label>
+                    <input id="newRuleRegex" class="form-control" placeholder="Enter Regex Pattern..." />
+                    <span id="newRuleRegex-validation" class="text-danger d-block mt-1"></span>
+                </div>
+                <div class="col-md-2 align-self-end">
+                    <button type="button" id="add-rule-btn" class="btn btn-success w-100">
+                        <i class="bi bi-plus-circle"></i> Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3 mb-5">
+        <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save-fill me-1"></i> Save All Changes to Profile</button>
+        <a asp-page="./Index" class="btn btn-secondary btn-lg">Back to List</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        $(document).ready(function () {
+
+            function updateRuleIndices() {
+                $('#rules-table-body tr').each(function (rowIndex) {
+                    $(this).find('input, select').each(function () {
+                        const name = $(this).attr('name');
+                        if (name) {
+                            // This regex replaces the index in "ProfileVM.Rules[...]" with the correct rowIndex
+                            const newName = name.replace(/^(ProfileVM\.Rules)\[.*\]/, '$1[' + rowIndex + ']');
+                            $(this).attr('name', newName);
+                        }
+                    });
+                });
+
+                // Re-parse the unobtrusive validator for the form
+                const form = $('form');
+                form.removeData('validator');
+                form.removeData('unobtrusiveValidation');
+                $.validator.unobtrusive.parse(form);
+            }
+
+            $('#add-rule-btn').on('click', function () {
+                const fieldTypeSelect = $('#newRuleFieldType');
+                const regexInput = $('#newRuleRegex');
+                const fieldType = fieldTypeSelect.val();
+                const regexPattern = regexInput.val();
+                let isValid = true;
+
+                // --- Client-side validation for the "Add New" form ---
+                $('#newRuleFieldType-validation').text('');
+                $('#newRuleRegex-validation').text('');
+
+                if (!fieldType) {
+                    $('#newRuleFieldType-validation').text('Field Type is required.');
+                    isValid = false;
+                }
+                if (!regexPattern) {
+                     $('#newRuleRegex-validation').text('Regex Pattern is required.');
+                     isValid = false;
+                }
+                if (!isValid) return;
+
+                // --- Prevent adding duplicate rule types ---
+                let isDuplicate = false;
+                $('input[name$="].FieldType"]').each(function() {
+                    if ($(this).val() === fieldType) {
+                        isDuplicate = true;
+                    }
+                });
+                if(isDuplicate) {
+                    alert('A rule for this field type already exists. Please edit the existing rule.');
+                    return;
+                }
+
+                const newIndex = $('#rules-table-body tr').length;
+                const fieldTypeText = fieldTypeSelect.find('option:selected').text();
+
+                // --- Generate HTML for the new row using correct ViewModel property names ---
+                const newRowHtml = `
+                    <tr>
+                        <td>
+                            <input type="hidden" name="ProfileVM.Rules[${newIndex}].Id" value="0" />
+                            <input type="hidden" name="ProfileVM.Rules[${newIndex}].ParsingProfileId" value="${$('#ProfileVM_Id').val()}" />
+                            <input type="hidden" name="ProfileVM.Rules[${newIndex}].FieldType" value="${fieldType}" />
+                            <strong>${fieldTypeText}</strong>
+                        </td>
+                        <td>
+                            <input name="ProfileVM.Rules[${newIndex}].RegexPattern" class="form-control" value="${regexPattern}" />
+                            <span data-valmsg-for="ProfileVM.Rules[${newIndex}].RegexPattern" class="text-danger"></span>
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-danger btn-sm delete-rule-btn">
+                                <i class="bi bi-trash-fill"></i> Delete
+                            </button>
+                        </td>
+                    </tr>`;
+
+                $('#rules-table-body').append(newRowHtml);
+
+                // Clear input fields for next entry
+                regexInput.val('');
+                fieldTypeSelect.val('');
+
+                // After adding, re-index everything to ensure consistency
+                updateRuleIndices();
+            });
+
+            // --- Event handler for delete buttons ---
+            $('#rules-table-body').on('click', '.delete-rule-btn', function () {
+                if (confirm('Are you sure you want to remove this rule? It will be permanently deleted when you save.')) {
+                    $(this).closest('tr').remove();
+                    // After deleting a row, we MUST re-index all subsequent rows.
+                    updateRuleIndices();
+                }
+            });
+
+            // Initialize indices on page load
+            updateRuleIndices();
+        });
+    </script>
+}

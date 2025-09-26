@@ -1,0 +1,142 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<!-- Info Boxes -->
+<div class="row">
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3>@Model.TotalAccounts</h3>
+                <p>Total Accounts</p>
+            </div>
+            <div class="icon">
+                <i class="bi bi-person-vcard"></i>
+            </div>
+            <a asp-page="/Accounts/Index" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3>@Model.ActiveAccounts</h3>
+                <p>Active Accounts (In Stock)</p>
+            </div>
+            <div class="icon">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <a asp-page="/Accounts/Index" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3>@Model.TotalGames</h3>
+                <p>Games in Library</p>
+            </div>
+            <div class="icon">
+                <i class="bi bi-controller"></i>
+            </div>
+            <a asp-page="/Games/Index" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+    <!-- ./col -->
+    <div class="col-lg-3 col-6">
+        <!-- small box -->
+        <div class="small-box bg-danger">
+            <div class="inner">
+                <h3>@Model.PendingPurchases</h3>
+                <p>Pending Purchases</p>
+            </div>
+            <div class="icon">
+                <i class="bi bi-cart-check-fill"></i>
+            </div>
+            <a asp-page="/Purchases/Index" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+    <!-- ./col -->
+</div>
+<!-- /.row -->
+
+<div class="row">
+    <!-- Left col -->
+    <section class="col-lg-6 connectedSortable">
+        <!-- Quick Actions Card -->
+        <div class="card card-primary card-outline">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-lightning-charge-fill me-1"></i>
+                    Quick Actions
+                </h3>
+            </div>
+            <div class="card-body">
+                <p>Quickly access the most common management tasks.</p>
+                <a asp-page="/Games/Create" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Add New Game</a>
+                <a asp-page="/Channels/Index" class="btn btn-info"><i class="bi bi-telegram me-1"></i> Manage Channels</a>
+            </div>
+        </div>
+    </section>
+    <!-- /.Left col -->
+    <section class="col-lg-6 connectedSortable">
+        <!-- System Status Card -->
+        <div class="card card-info card-outline">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-hdd-stack-fill me-1"></i>
+                    System Status
+                </h3>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Scraper Worker</dt>
+                    <dd class="col-sm-7">
+                        @if (Model.WorkerStatus.IsEnabled)
+                        {
+                            <span class="badge bg-success">RUNNING</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">STOPPED</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-5">Current Activity</dt>
+                    <dd class="col-sm-7">@Model.WorkerStatus.CurrentActivityMessage</dd>
+
+                    <dt class="col-sm-5">Last Cycle Finish</dt>
+                    <dd class="col-sm-7">@(Model.WorkerStatus.LastRunFinishedAt?.ToLocalTime().ToString("g") ?? "N/A")</dd>
+
+                    <dt class="col-sm-5">Last Cycle Duration</dt>
+                    <dd class="col-sm-7">@(Model.WorkerStatus.LastRunDuration?.ToString(@"m'm 's's'") ?? "N/A")</dd>
+
+                    <dt class="col-sm-5">New Messages (Last Run)</dt>
+                    <dd class="col-sm-7">@(Model.WorkerStatus.MessagesFoundInLastRun?.ToString() ?? "N/A")</dd>
+                </dl>
+            </div>
+            <div class="card-footer">
+                <form method="post">
+                    @if (Model.WorkerStatus.IsEnabled)
+                    {
+                        <button type="submit" class="btn btn-danger" asp-page-handler="StopWorker">
+                            <i class="bi bi-stop-circle-fill me-1"></i> Stop Scraper
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn-success" asp-page-handler="StartWorker">
+                            <i class="bi bi-play-circle-fill me-1"></i> Start Scraper
+                        </button>
+                    }
+                </form>
+            </div>
+        </div>
+    </section>
+    <!-- right col -->
+</div>

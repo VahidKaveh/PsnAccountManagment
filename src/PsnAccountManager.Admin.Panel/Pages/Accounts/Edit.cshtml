@@ -1,0 +1,121 @@
+﻿@page "{id:int}"
+@model PsnAccountManager.Admin.Panel.Pages.Accounts.EditModel
+@using PsnAccountManager.Shared.Enums
+@{
+    ViewData["Title"] = "Edit Account";
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Edit: @Model.AccountVM.Title</h3>
+    </div>
+    <form method="post">
+        <input type="hidden" asp-for="AccountVM.Id" />
+        <div class="card-body">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="form-group mb-3">
+                <label asp-for="AccountVM.Title"></label>
+                <input asp-for="AccountVM.Title" class="form-control" />
+                <span asp-validation-for="AccountVM.Title" class="text-danger"></span>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 form-group mb-3">
+                    <label asp-for="AccountVM.PricePs4"></label>
+                    <input asp-for="AccountVM.PricePs4" class="form-control" />
+                    <span asp-validation-for="AccountVM.PricePs4" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 form-group mb-3">
+                    <label asp-for="AccountVM.PricePs5"></label>
+                    <input asp-for="AccountVM.PricePs5" class="form-control" />
+                    <span asp-validation-for="AccountVM.PricePs5" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 form-group mb-3">
+                    <label asp-for="AccountVM.Region"></label>
+                    <input asp-for="AccountVM.Region" class="form-control" />
+                    <span asp-validation-for="AccountVM.Region" class="text-danger"></span>
+                </div>
+                <div class="col-md-6 form-group mb-3">
+                    <label asp-for="AccountVM.Capacity"></label>
+                    <select asp-for="AccountVM.Capacity" asp-items="Html.GetEnumSelectList<AccountCapacity>()" class="form-control"></select>
+                    <span asp-validation-for="AccountVM.Capacity" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="AccountVM.StockStatus"></label>
+                <select asp-for="AccountVM.StockStatus" asp-items="Html.GetEnumSelectList<StockStatus>()" class="form-control"></select>
+                <span asp-validation-for="AccountVM.StockStatus" class="text-danger"></span>
+            </div>
+
+            <div class="form-group form-check mb-3">
+                <input type="checkbox" asp-for="AccountVM.HasOriginalMail" class="form-check-input" />
+                <label class="form-check-label" asp-for="AccountVM.HasOriginalMail"></label>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="AccountVM.AdditionalInfo"></label>
+                <textarea asp-for="AccountVM.AdditionalInfo" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="AccountVM.AdditionalInfo" class="text-danger"></span>
+            </div>
+
+            <hr />
+
+            <div class="form-group mb-3">
+                <label asp-for="AccountVM.SelectedGameIds"></label>
+                <select asp-for="AccountVM.SelectedGameIds" asp-items="Model.AllGames" class="form-control select2" multiple="multiple"></select>
+                <span asp-validation-for="AccountVM.SelectedGameIds" class="text-danger"></span>
+            </div>
+
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a asp-page="./Details" asp-route-id="@Model.AccountVM.Id" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <!-- Select2 CSS & JS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ttskch/select2-bootstrap4-theme@x.x.x/dist/select2-bootstrap4.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            var select2Games = $('.select2');
+
+            select2Games.select2({
+                placeholder: "Select games...",
+                allowClear: true,
+                theme: "bootstrap4" // Using the correct theme for AdminLTE v3.2
+            });
+
+            function updateAccountTitle() {
+                const titleInput = $('input[name="AccountVM.Title"]');
+                const originalTitle = titleInput.val();
+                if (typeof originalTitle !== 'string') return;
+
+                const gameCount = select2Games.select2('data').length;
+                const titleBase = originalTitle.replace(/\s*\(\d+\s*Games\)$/i, '').trim();
+                const newTitle = `${titleBase} (${gameCount} Games)`;
+
+                titleInput.val(newTitle);
+                $('.card-header h3').text('Edit: ' + newTitle);
+            }
+
+            select2Games.on('change', function() {
+                updateAccountTitle();
+            });
+
+            // A small delay to ensure Select2 has initialized before the first title update
+            setTimeout(updateAccountTitle, 200);
+        });
+    </script>
+}

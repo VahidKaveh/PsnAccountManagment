@@ -1,0 +1,98 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Settings.IndexModel
+@{
+    ViewData["Title"] = "Application Settings";
+}
+
+<!-- Display Status Message if it exists -->
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-success alert-dismissible">
+                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                <h5><i class="icon bi bi-check-circle-fill"></i> Success!</h5>
+                @Model.StatusMessage
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card card-primary card-outline">
+            <div class="card-header">
+                <h3 class="card-title">Manage Settings</h3>
+            </div>
+            <!-- /.card-header -->
+            <form method="post">
+                <div class="card-body">
+                    @if (Model.Settings != null && Model.Settings.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">Setting Key</th>
+                                        <th>Value</th>
+                                        <th style="width: 45%;">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < Model.Settings.Count; i++)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <label for="Settings_@(i)__Value" class="form-label font-weight-bold">@Model.Settings[i].Key</label>
+                                                <input type="hidden" asp-for="Settings[i].Key" />
+                                            </td>
+                                            <td>
+                                                <input asp-for="Settings[i].Value" class="form-control" />
+                                                <span asp-validation-for="Settings[i].Value" class="text-danger"></span>
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">@GetDescription(Model.Settings[i].Key)</small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            <h5><i class="icon bi bi-exclamation-triangle-fill"></i> No Settings Found!</h5>
+                            There are no application settings in the database to configure. Please run the initial data seeding migration.
+                        </div>
+                    }
+                </div>
+                <!-- /.card-body -->
+                @if (Model.Settings != null && Model.Settings.Any())
+                {
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save-fill me-1"></i> Save All Changes
+                        </button>
+                    </div>
+                }
+            </form>
+        </div>
+        <!-- /.card -->
+    </div>
+</div>
+
+@functions {
+    // Helper function to provide descriptions for known settings
+    private string GetDescription(string key)
+    {
+        return key switch
+        {
+            "Matcher.MinMatchedGames" => "The minimum number of games an account must have in common with a user's request to be considered a primary match.",
+            "Matcher.MaxSuggestions" => "The maximum number of account suggestions to provide for a single user request.",
+            "Matcher.SuggestionSortOrder" => "The method for sorting secondary suggestions. Options: 'ByPrice', 'ByMatchedGames', 'None'.",
+            "ScraperWorker.ScrapeIntervalMinutes" => "The interval in minutes between each scrape cycle for all channels.",
+            _ => "No description available."
+        };
+    }
+}

@@ -1,0 +1,121 @@
+﻿@page "{id:int}"
+@model PsnAccountManager.Admin.Panel.Pages.Accounts.DetailsModel
+@{
+    ViewData["Title"] = "Account Details";
+}
+
+@if (Model.Account != null)
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Account Properties Card -->
+            <div class="card card-primary card-outline">
+                <div class="card-body box-profile">
+                    <h3 class="profile-username text-center" style="word-break: break-word;">@Model.Account.Title</h3>
+                    <p class="text-muted text-center">From: @Model.Account.Channel?.Name</p>
+                    <ul class="list-group list-group-unbordered mb-3">
+                        <li class="list-group-item"><b>Status</b> <a class="float-right">@Model.Account.StockStatus</a></li>
+                        <li class="list-group-item"><b>Price (PS4)</b> <a class="float-right">@(Model.Account.PricePs4?.ToString("C") ?? "N/A")</a></li>
+                        <li class="list-group-item"><b>Price (PS5)</b> <a class="float-right">@(Model.Account.PricePs5?.ToString("C") ?? "N/A")</a></li>
+                        <li class="list-group-item"><b>Region</b> <a class="float-right">@Model.Account.Region</a></li>
+                        <li class="list-group-item"><b>Recent Changes</b> <a class="float-right">@Model.Account.RecentChanges</a></li>
+                        <li class="list-group-item">
+                            <b>Additional Info</b> <a class="float-right">@Model.Account.AdditionalInfo</a>
+                        </li>
+                    </ul>
+                    <a asp-page="./Edit" asp-route-id="@Model.Account.Id" class="btn btn-primary btn-block"><b>Edit Account</b></a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header p-2">
+                    <ul class="nav nav-pills">
+                        <li class="nav-item"><a class="nav-link active" href="#detailsTab" data-toggle="tab">Description & Games</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#historyTab" data-toggle="tab">Change History</a></li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <div class="active tab-pane" id="detailsTab">
+                            <h5><i class="bi bi-controller mr-1"></i> Associated Games (@Model.Account.AccountGames.Count)</h5>
+                            @if (Model.Account.AccountGames != null && Model.Account.AccountGames.Any())
+                            {
+                                <ul class="list-group list-group-flush mb-4">
+                                    @foreach (var game in Model.Account.AccountGames.Take(5))
+                                    {
+                                        <li class="list-group-item">@(game.Game?.Title ?? "Game Title Missing")</li>
+                                    }
+                                </ul>
+                                @if (Model.Account.AccountGames.Count > 5)
+                                {
+                                    <div class="collapse" id="moreGames">
+                                        <ul class="list-group list-group-flush mb-4">
+                                            @foreach (var game in Model.Account.AccountGames.Skip(5))
+                                            {
+                                                <li class="list-group-item">@(game.Game?.Title ?? "Game Title Missing")</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                    <button class="btn btn-sm btn-secondary" type="button" data-toggle="collapse" data-target="#moreGames" aria-expanded="false" aria-controls="moreGames">
+                                        Show @(Model.Account.AccountGames.Count - 5) more games...
+                                    </button>
+                                }
+                            }
+                            else
+                            {
+                                <p class="text-muted">No games are linked to this account.</p>
+                            }
+                            <hr>
+                            <h5><i class="bi bi-file-text-fill mr-1"></i> Original Post Content</h5>
+                            <pre style="white-space: pre-wrap; word-break: break-word; font-size: 0.9rem;">@Model.Account.Description</pre>
+                        </div>
+                        <div class="tab-pane" id="historyTab">
+                            @if (Model.Account.History != null && Model.Account.History.Any())
+                            {
+                                <div class="timeline">
+                                    @foreach (var item in Model.Account.History)
+                                    {
+                                        <div>
+                                            <i class="fas fa-edit bg-primary"></i>
+                                            <div class="timeline-item">
+                                                <span class="time"><i class="fas fa-clock"></i> @item.ChangedAt.ToLocalTime().ToString("g")</span>
+                                                <h3 class="timeline-header no-border">Field <strong>@item.FieldName</strong> was changed by <strong>@item.ChangedBy</strong></h3>
+                                                <div class="timeline-body">
+                                                    <span class="text-danger">Old Value:</span> <code>@(item.OldValue ?? "N/A")</code><br />
+                                                    <span class="text-success">New Value:</span> <code>@(item.NewValue ?? "N/A")</code>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+
+                                <p class="text-muted text-center">No changes have been recorded for this account.</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-danger"><h4><i class="icon bi bi-exclamation-triangle-fill"></i> Account Not Found</h4></div>
+}
+
+@section Scripts {
+    <script>
+        // Optional: Change button text after expanding
+        $('#moreGames').on('show.bs.collapse', function () {
+            $('button[data-target="#moreGames"]').text('Show fewer games...');
+        }).on('hide.bs.collapse', function () {
+            var remaining = @(Model.Account?.AccountGames.Count - 5 ?? 0);
+            $('button[data-target="#moreGames"]').text('Show ' + remaining + ' more games...');
+        });
+    </script>
+}

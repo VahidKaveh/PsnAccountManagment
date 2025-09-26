@@ -1,0 +1,83 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Users.IndexModel
+@{
+    ViewData["Title"] = "User Management";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="info-box">
+            <span class="info-box-icon bg-warning"><i class="bi bi-people-fill"></i></span>
+            <div class="info-box-content">
+                <span class="info-box-text">Total Registered Users</span>
+                <span class="info-box-number">@Model.TotalUsers</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">@ViewData["Title"]</h3>
+    </div>
+    <div class="card-body">
+        <table id="usersTable" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Telegram ID</th>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Last Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in Model.Users)
+                {
+                    <tr>
+                        <td>@user.Id</td>
+                        <td>@user.TelegramId</td>
+                        <td>@user.Username</td>
+                        <td>
+                            <span class="badge @GetStatusBadgeClass(user.Status)">@user.Status</span>
+                        </td>
+                        <td>@user.LastActiveAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="text-center">
+                            <a asp-page="./Edit" asp-route-id="@user.Id" class="btn btn-info btn-sm" title="Edit">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@functions {
+    private string GetStatusBadgeClass(PsnAccountManager.Shared.Enums.UserStatus status)
+    {
+        return status switch
+        {
+            PsnAccountManager.Shared.Enums.UserStatus.Active => "bg-success",
+            PsnAccountManager.Shared.Enums.UserStatus.Banned => "bg-danger",
+            PsnAccountManager.Shared.Enums.UserStatus.Inactive => "bg-secondary",
+            _ => "bg-light"
+        };
+    }
+}
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.0.5/css/dataTables.bootstrap5.css">
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.bootstrap5.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#usersTable').DataTable({
+                "responsive": true, "lengthChange": false, "autoWidth": false,
+                "order": [[4, "desc"]] // Order by Last Active descending
+            });
+        });
+    </script>
+}

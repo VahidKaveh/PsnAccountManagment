@@ -1,0 +1,72 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Channels.IndexModel
+@{
+    ViewData["Title"] = "Manage Channels";
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Channels List</h3>
+        <div class="card-tools">
+            <a asp-page="Create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Channel
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="channelsTable" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name (Telegram Username)</th>
+                    <th>Status</th>
+                    <th>Last Scraped At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Channels)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        <td>@item.Name</td>
+                        <td>
+                            @if (item.Status == PsnAccountManager.Shared.Enums.ChannelStatus.Active)
+                            {
+                                <span class="badge bg-success">@item.Status</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">@item.Status</span>
+                            }
+                        </td>
+                        <td>@(item.LastScrapedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Never")</td>
+                        <td class="text-center">
+                            <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-info btn-sm" title="Edit">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- DataTables JS and CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.0.5/css/dataTables.bootstrap5.css">
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.bootstrap5.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            $('#channelsTable').DataTable({
+                "responsive": true,
+                "lengthChange": false,
+                "autoWidth": false,
+                "order": [[0, "desc"]] // Order by ID descending by default
+            });
+        });
+    </script>
+}

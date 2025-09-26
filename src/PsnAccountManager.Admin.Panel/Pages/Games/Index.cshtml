@@ -1,0 +1,72 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Games.IndexModel
+@{
+    ViewData["Title"] = "Games Library";
+}
+
+<!-- ✅✅✅ بخش جدید: نمایش آمار ✅✅✅ -->
+<div class="row">
+    <div class="col-12">
+        <div class="info-box">
+            <span class="info-box-icon bg-info"><i class="bi bi-controller"></i></span>
+            <div class="info-box-content">
+                <span class="info-box-text">Total Games in Library</span>
+                <span class="info-box-number">@Model.TotalGames</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">@ViewData["Title"]</h3>
+        <div class="card-tools">
+            <a asp-page="Create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Game
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table id="gamesTable" class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Sony Code</th>
+                    <th>Region</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Games)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        <td>@item.Title</td>
+                        <td>@item.SonyCode</td>
+                        <td>@item.Region</td>
+                        <td class="text-center">
+                            <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-info btn-sm" title="Edit">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.0.5/css/dataTables.bootstrap5.css">
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.bootstrap5.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#gamesTable').DataTable({
+                "responsive": true, "lengthChange": false, "autoWidth": false,
+                "order": [[1, "asc"]] // Order by Title ascending
+            });
+        });
+    </script>
+}

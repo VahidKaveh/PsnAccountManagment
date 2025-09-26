@@ -1,0 +1,37 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.ParsingProfiles.IndexModel
+@{
+    ViewData["Title"] = "Parsing Profiles";
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">@ViewData["Title"]</h3>
+        <div class="card-tools">
+            <a asp-page="Create" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Profile
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table class="table table-bordered">
+            <thead>
+            <tr><th>ID</th><th>Profile Name</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Model.Profiles)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.Name</td>
+                    <td>
+                        <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-info btn-sm">
+                            <i class="bi bi-pencil-fill"></i> Edit Rules
+                        </a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

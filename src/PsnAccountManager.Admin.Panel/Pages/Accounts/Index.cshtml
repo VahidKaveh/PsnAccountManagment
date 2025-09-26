@@ -1,0 +1,99 @@
+﻿@page
+@using PsnAccountManager.Shared.Enums
+@model PsnAccountManager.Admin.Panel.Pages.Accounts.IndexModel
+@{
+    ViewData["Title"] = "Manage Accounts";
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title">Scraped Accounts List</h3>
+    </div>
+    <div class="card-body">
+        <!-- Filter Form -->
+        <form method="get" class="mb-4">
+            <div class="row">
+                <div class="col-md-5">
+                    <input type="text" asp-for="SearchTerm" class="form-control" placeholder="Search by Title or External ID..." />
+                </div>
+                <div class="col-md-5">
+                    <select asp-for="FilterStatus" asp-items="Html.GetEnumSelectList<StockStatus>()" class="form-control">
+                        <option value="">All Statuses</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Channel</th>
+                        <th>Price (PS4/PS5)</th>
+                        <th>Status</th>
+                        <th>Last Scraped</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Accounts)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-page="./Details" asp-route-id="@item.Id">@item.Title</a><br />
+                                <small class="text-muted">Ext. ID: @item.ExternalId</small>
+                            </td>
+                            <td>@item.Channel.Name</td>
+                            <td>
+                                @(item.PricePs4?.ToString("C") ?? "-") / 
+                                @(item.PricePs5?.ToString("C") ?? "-")
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(item.StockStatus)">@item.StockStatus</span>
+                            </td>
+                            <td>@item.LastScrapedAt.ToString("g")</td>
+                            <td class="text-center">
+                                <a asp-page="./Edit" asp-route-id="@item.Id" class="btn btn-info btn-sm" title="Edit">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <nav>
+            <ul class="pagination justify-content-center">
+                @for (var i = 1; i <= Model.TotalPages; i++)
+                {
+                    <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                        <a asp-page="./Index"
+                           asp-route-CurrentPage="@i"
+                           asp-route-SearchTerm="@Model.SearchTerm"
+                           asp-route-FilterStatus="@Model.FilterStatus"
+                           class="page-link">@i</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    </div>
+</div>
+
+@functions {
+    private string GetStatusBadgeClass(StockStatus status)
+    {
+        return status switch
+        {
+            StockStatus.InStock => "bg-success",
+            StockStatus.OutOfStock => "bg-danger",
+            StockStatus.Reserved => "bg-warning",
+            _ => "bg-secondary"
+        };
+    }
+}

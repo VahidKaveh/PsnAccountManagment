@@ -1,0 +1,194 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Inbox.IndexModel
+@{
+    ViewData["Title"] = "Message Inbox";
+}
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info alert-dismissible">
+                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                @Model.StatusMessage
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card card-primary card-outline">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-envelope-exclamation-fill me-1"></i>
+                    Pending Messages (@Model.TotalPendingMessages)
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.Messages != null && Model.Messages.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <tbody>
+                                @foreach (var msg in Model.Messages)
+                                {
+                                    <tr>
+                                        <td class="col-2">
+                                            <strong>Channel:</strong> <span>@msg.Channel?.Name ?? "N/A"</span><br />
+                                            <small class="text-muted">Received: @msg.ReceivedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                        </td>
+                                        <td class="col-8">
+                                            <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 0.9rem;">@msg.MessageText</pre>
+                                        </td>
+                                        <td class="col-2 text-end align-middle">
+                                            <button class="btn btn-sm btn-success w-100 mb-2 process-btn" data-message-id="@msg.Id">
+                                                <i class="bi bi-gear-fill"></i> Process
+                                            </button>
+                                            <form method="post" class="d-inline w-100">
+                                                <button type="submit" asp-page-handler="Ignore" asp-route-id="@msg.Id" class="btn btn-sm btn-warning w-100"
+                                                        onclick="return confirm('Are you sure you want to ignore this message?');">
+                                                    <i class="bi bi-eye-slash-fill"></i> Ignore
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-4 text-center text-muted">
+                        <h5><i class="bi bi-check2-circle"></i> Inbox Zero!</h5>
+                        <p>There are no pending messages to review.</p>
+                    </div>
+                }
+            </div>
+            @if (Model.TotalPages > 1)
+            {
+                <div class="card-footer clearfix">
+                    <ul class="pagination pagination-sm m-0 float-right">
+                        @for (var i = 1; i <= Model.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                <a asp-page="./Index" asp-route-CurrentPage="@i" class="page-link">@i</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+
+<!-- Process Modal -->
+<div class="modal fade" id="processModal" tabindex="-1" aria-labelledby="processModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="processModalLabel">Process Message</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-spinner" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>
+                </div>
+                <div id="modal-content-area" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveAccountBtn">Save Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('body').on('click', '.process-btn', function (e) {
+                e.preventDefault();
+                var messageId = $(this).data('message-id');
+                var modalContent = $('#modal-content-area');
+                var spinner = $('#modal-spinner');
+
+                spinner.show();
+                modalContent.hide().empty();
+                $('#processModalLabel').text('Processing Message ID: ' + messageId);
+                $('#processModal').modal('show');
+
+                $.ajax({
+                    url: '/Inbox?handler=ProcessPreview&id=' + messageId,
+                    type: 'GET',
+                    success: function (response) {
+                        if (response && response.success && response.data) {
+                            var data = response.data;
+                            function safeValue(value, fallback = '') {
+                                if (typeof value === 'string') return value.replace(/"/g, '&quot;');
+                                return value !== null && value !== undefined ? value : fallback;
+                            }
+                            var contentHtml = `...`; // (کد ساخت HTML از پاسخ قبلی)
+                            modalContent.html(contentHtml);
+                        } else {
+                            modalContent.html(`<div class="alert alert-danger">${response.message || 'An unknown error.'}</div>`);
+                        }
+                    },
+                    error: function () {
+                        modalContent.html('<div class="alert alert-danger">Server error.</div>');
+                    },
+                    complete: function () {
+                        spinner.hide();
+                        modalContent.show();
+                    }
+                });
+            });
+
+            $('#saveAccountBtn').on('click', function() {
+                var form = $('#processForm');
+                const gameCount = form.find('.game-title-input').length;
+                const titleInput = form.find('input[name="title"]');
+                if (titleInput.length > 0) {
+                    const originalTitle = titleInput.val();
+                    const titleBase = originalTitle.replace(/\s*\(\d+\s*Games\)$/i, '').trim();
+                    const newTitle = `${titleBase} (${gameCount} Games)`;
+                    titleInput.val(newTitle);
+                }
+
+                var formData = {
+                    rawMessageId: parseInt(form.find('input[name="rawMessageId"]').val()),
+                    title: form.find('input[name="title"]').val(),
+                    pricePs4: parseFloat(form.find('input[name="pricePs4"]').val()) || null,
+                    pricePs5: parseFloat(form.find('input[name="pricePs5"]').val()) || null,
+                    region: form.find('input[name="region"]').val(),
+                    additionalInfo: form.find('textarea[name="additionalInfo"]').val(),
+                    gameTitles: []
+                };
+
+                $('#games-list .game-title-input').each(function() {
+                    var title = $(this).val();
+                    if (title) { formData.gameTitles.push(title); }
+                });
+
+                $.ajax({
+                    url: '/Inbox?handler=ProcessAndSave',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                    data: JSON.stringify(formData),
+                    success: function(response) {
+                        if (response.success) {
+                            $('#processModal').modal('hide');
+                            window.location.reload();
+                        } else { alert('Error: ' + response.message); }
+                    },
+                    error: function() { alert('A critical server error.'); }
+                });
+            });
+        });
+    </script>
+}}

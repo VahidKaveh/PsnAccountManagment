@@ -1,0 +1,17 @@
+﻿services:
+  db:
+    image: mysql:latest
+    container_name: psn-mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: a@2530303
+      MYSQL_DATABASE: PsnAccountManagerDb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+ 
+
+volumes:
+  mysql_data:
