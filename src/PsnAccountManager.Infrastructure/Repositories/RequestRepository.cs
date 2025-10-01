@@ -10,7 +10,7 @@ public class RequestRepository(PsnAccountManagerDbContext context) : GenericRepo
 {
     public async Task<Request?> GetRequestWithGamesAsync(int requestId)
     {
-        return await _dbSet
+        return await DbSet
             .Include(r => r.RequestGames)
             .ThenInclude(rg => rg.Game) // Load the actual Game entity as well
             .FirstOrDefaultAsync(r => r.Id == requestId);

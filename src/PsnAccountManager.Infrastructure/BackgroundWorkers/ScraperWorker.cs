@@ -10,6 +10,10 @@ using System.Diagnostics;
 
 namespace PsnAccountManager.Infrastructure.BackgroundWorkers;
 
+/// <summary>
+/// Background worker that periodically scrapes Telegram channels for new messages
+/// Enhanced with retry logic, better error handling, and metrics
+/// </summary>
 public class ScraperWorker : BackgroundService
 {
     private readonly ILogger<ScraperWorker> _logger;
@@ -18,6 +22,12 @@ public class ScraperWorker : BackgroundService
     private readonly ITelegramClient _telegramClient;
     private readonly IWorkerStateService _workerState;
 
+    // Configuration constants
+    private const int DEFAULT_SCRAPE_INTERVAL_MINUTES = 15;
+    private const int DEFAULT_DELAY_BETWEEN_CHANNELS_MS = 2000;
+    private const int MAX_RETRY_ATTEMPTS = 3;
+    private const int RETRY_DELAY_SECONDS = 5;
+
     public ScraperWorker(
         ILogger<ScraperWorker> logger,
         IServiceScopeFactory scopeFactory,
@@ -25,188 +35,333 @@ public class ScraperWorker : BackgroundService
         ITelegramClient telegramClient,
         IWorkerStateService workerState)
     {
-        _logger = logger;
-        _scopeFactory = scopeFactory;
-        _configuration = configuration;
-        _telegramClient = telegramClient;
-        _workerState = workerState;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _telegramClient = telegramClient ?? throw new ArgumentNullException(nameof(telegramClient));
+        _workerState = workerState ?? throw new ArgumentNullException(nameof(workerState));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("ScraperWorker is starting up.");
+        _logger.LogInformation("ScraperWorker starting at: {Time}", DateTimeOffset.Now);
         _workerState.UpdateStatus(WorkerActivity.Initializing, "Worker is starting up...");
 
+        // Wait for application to fully start
+        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+
+        // Authenticate with Telegram
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            _workerState.UpdateStatus(WorkerActivity.Authenticating, "Attempting to log into Telegram...");
+            _logger.LogInformation("Authenticating with Telegram...");
 
-            _workerState.UpdateStatus(WorkerActivity.ConnectingToTelegram, "Attempting to log into Telegram...");
-            await _telegramClient.LoginAsync();
-            _workerState.UpdateStatus(WorkerActivity.Idle, "Successfully logged in. Waiting for the first cycle.");
+            await _telegramClient.LoginUserIfNeededAsync();
+
+            _logger.LogInformation("Successfully authenticated with Telegram");
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "Telegram login failed. ScraperWorker cannot start.");
-            _workerState.UpdateStatus(WorkerActivity.Error, $"Telegram login failed: {ex.Message}");
+            _logger.LogCritical(ex, "Failed to authenticate with Telegram. Worker cannot continue.");
+            _workerState.UpdateStatus(WorkerActivity.Idle, "Successfully logged in...");
             return;
         }
 
-        var interval = TimeSpan.FromMinutes(_configuration.GetValue<int>("ScraperWorkerSettings:ScrapeIntervalMinutes", 15));
-
+        // Main scraping loop
         while (!stoppingToken.IsCancellationRequested)
         {
             var stopwatch = Stopwatch.StartNew();
-            int totalNewMessagesInCycle = 0;
 
             try
             {
-                if (_workerState.IsEnabled())
-                {
-                    _logger.LogInformation("ScraperWorker cycle starting.");
-                    _workerState.UpdateStatus(WorkerActivity.Scraping, "Scraping cycle has started.");
+                _workerState.UpdateStatus(WorkerActivity.Scraping, "Scraping cycle has started.");
 
-                    totalNewMessagesInCycle = await ScrapeAndStoreMessagesAsync(stoppingToken);
+                await ScrapeAllChannelsAsync(stoppingToken);
 
-                    stopwatch.Stop();
-                    _workerState.ReportCycleCompletion(stopwatch.Elapsed, totalNewMessagesInCycle);
-                    _workerState.UpdateStatus(WorkerActivity.CycleFinished, $"Cycle finished. Found {totalNewMessagesInCycle} new messages.");
-                    _logger.LogInformation("ScraperWorker cycle finished in {Duration}. Found {Count} new messages.", stopwatch.Elapsed, totalNewMessagesInCycle);
-                }
-                else
-                {
-                    // Update status only if it's not already stopped to avoid redundant messages
-                    if (_workerState.GetStatus().CurrentActivity != WorkerActivity.Stopped)
-                    {
-                        _workerState.UpdateStatus(WorkerActivity.Stopped, "Worker is stopped by admin. Skipping cycle.");
-                        _logger.LogInformation("ScraperWorker is stopped. Skipping cycle.");
-                    }
-                }
+                _workerState.UpdateStatus(WorkerActivity.Idle,"Worker id in Idle......");
+                stopwatch.Stop();
+
+                _logger.LogInformation(
+                    "Scraping cycle completed in {ElapsedMs}ms. Waiting {Minutes} minutes until next cycle.",
+                    stopwatch.ElapsedMilliseconds,
+                    GetScrapeIntervalMinutes());
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
-                _logger.LogError(ex, "An unhandled exception occurred during the scraping cycle.");
-                _workerState.UpdateStatus(WorkerActivity.Error, $"An error occurred: {ex.Message}");
+                _logger.LogError(ex, "Critical error in scraping cycle");
+                _workerState.UpdateStatus(WorkerActivity.Error, $"Error scraping cycle {ex.Message.ToString()}. Check logs.");
             }
 
-            _workerState.UpdateStatus(WorkerActivity.Idle, $"Waiting for the next cycle in {interval.TotalMinutes} minutes.");
-            await Task.Delay(interval, stoppingToken);
+            // Wait for configured interval
+            var intervalMinutes = GetScrapeIntervalMinutes();
+            await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
+        }
+
+        _logger.LogInformation("ScraperWorker stopping at: {Time}", DateTimeOffset.Now);
+    }
+
+    /// <summary>
+    /// Scrapes all active channels
+    /// </summary>
+    private async Task ScrapeAllChannelsAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var channelRepo = scope.ServiceProvider.GetRequiredService<IChannelRepository>();
+        var rawMessageRepo = scope.ServiceProvider.GetRequiredService<IRawMessageRepository>();
+
+        try
+        {
+            // Get all active channels
+            var channels = await channelRepo.GetActiveChannelsAsync();
+            var channelList = channels.ToList();
+
+            if (!channelList.Any())
+            {
+                _logger.LogWarning("No active channels found to scrape");
+                return;
+            }
+
+            _logger.LogInformation("Starting to scrape {Count} active channels", channelList.Count);
+
+            int successCount = 0;
+            int failCount = 0;
+            int totalMessages = 0;
+
+            foreach (var channel in channelList)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    var messages = await ScrapeChannelWithRetryAsync(
+                        channel,
+                        rawMessageRepo,
+                        MAX_RETRY_ATTEMPTS,
+                        cancellationToken);
+
+                    if (messages > 0)
+                    {
+                        successCount++;
+                        totalMessages += messages;
+
+                        _logger.LogInformation(
+                            "Successfully scraped {MessageCount} new messages from channel: {ChannelName}",
+                            messages, channel.Name);
+                    }
+                    else
+                    {
+                        successCount++;
+                        _logger.LogDebug("No new messages in channel: {ChannelName}", channel.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failCount++;
+                    _logger.LogError(ex,
+                        "Failed to scrape channel: {ChannelName} after {MaxRetries} retries",
+                        channel.Name, MAX_RETRY_ATTEMPTS);
+                }
+
+                // Delay between channels to avoid rate limiting
+                if (channel != channelList.Last())
+                {
+                    await Task.Delay(GetDelayBetweenChannels(), cancellationToken);
+                }
+            }
+
+            _logger.LogInformation(
+                "Scraping summary: {Total} channels, {Success} successful, {Failed} failed, {TotalMessages} total messages",
+                channelList.Count, successCount, failCount, totalMessages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ScrapeAllChannelsAsync");
+            throw;
         }
     }
 
-    private async Task<int> ScrapeAndStoreMessagesAsync(CancellationToken stoppingToken)
+    /// <summary>
+    /// Scrapes a single channel with retry logic
+    /// </summary>
+    private async Task<int> ScrapeChannelWithRetryAsync(
+        Channel channel,
+        IRawMessageRepository rawMessageRepo,
+        int maxRetries,
+        CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var channelRepository = scope.ServiceProvider.GetRequiredService<IChannelRepository>();
-        var rawMessageRepository = scope.ServiceProvider.GetRequiredService<IRawMessageRepository>();
+        int attempt = 0;
+        Exception? lastException = null;
 
-        var channelsToScrape = (await channelRepository.GetActiveChannelsAsync()).ToList();
-        int totalNewMessagesInCycle = 0;
-
-        for (int i = 0; i < channelsToScrape.Count; i++)
+        while (attempt < maxRetries)
         {
-            var channel = channelsToScrape[i];
-            if (stoppingToken.IsCancellationRequested) break;
-
-            _workerState.UpdateStatus(WorkerActivity.Scraping, $"Scraping channel {i + 1}/{channelsToScrape.Count}: {channel.Name}");
+            attempt++;
 
             try
             {
-                IEnumerable<TL.Message> messages;
-                int lastKnownMessageId = channel.LastScrapedMessageId ?? 0;
-
-                switch (channel.FetchMode)
-                {
-                    case FetchMode.LastXMessages:
-                        int limit = channel.FetchValue ?? 100;
-                        _logger.LogInformation("Channel '{Name}' (Mode: LastXMessages): Fetching last {Value} messages.", channel.Name, limit);
-                        messages = await _telegramClient.GetMessagesAsync(
-                            channelUsername: channel.Name,
-                            limit: limit
-                        );
-                        break;
-
-                    case FetchMode.SinceXHoursAgo:
-                        int hours = channel.FetchValue ?? 24;
-                        var dateLimit = DateTime.UtcNow.AddHours(-hours);
-                        _logger.LogInformation("Channel '{Name}' (Mode: SinceXHoursAgo): Fetching messages since {DateLimit} ({Hours} hours ago).", channel.Name, dateLimit, hours);
-
-                        // Telegram API doesn't have a direct "get since date". A common strategy is to fetch recent messages and filter.
-                        // Fetching a larger batch (e.g., 200) increases the chance of finding all recent messages.
-                        var recentMessages = await _telegramClient.GetMessagesAsync(channel.Name, limit: 200);
-                        messages = recentMessages.Where(m => m.date.ToUniversalTime() >= dateLimit);
-                        break;
-
-                    case FetchMode.SinceLastMessage:
-                    default:
-                        _logger.LogInformation("Channel '{Name}' (Mode: SinceLastMessage): Fetching messages after ID {LastId}.", channel.Name, lastKnownMessageId);
-                        messages = await _telegramClient.GetMessagesAsync(
-                            channelUsername: channel.Name,
-                            minMessageId: lastKnownMessageId,
-                            limit: 100
-                        );
-                        break;
-                }
-
-                var messageList = messages.ToList();
-                if (!messageList.Any())
-                {
-                    _logger.LogInformation("No new messages found for channel '{ChannelName}' with the current fetch strategy.", channel.Name);
-                    channel.LastScrapedAt = DateTime.UtcNow; // Update scraped time even if no messages found
-                    channelRepository.Update(channel);
-                    await channelRepository.SaveChangesAsync();
-                    continue;
-                }
-
-                int newMessagesFromThisChannel = 0;
-                foreach (var message in messageList)
-                {
-                    if (string.IsNullOrWhiteSpace(message.message)) continue;
-
-                    // IMPORTANT: Check if we have already stored this message to prevent duplicates.
-                    var existingRawMessage = await rawMessageRepository.GetByExternalIdAsync(channel.Id, message.id);
-                    if (existingRawMessage != null)
-                    {
-                        // Optionally, you could update the existing message text here if needed.
-                        continue;
-                    }
-
-                    var newRawMessage = new RawMessage
-                    {
-                        ChannelId = channel.Id,
-                        ExternalMessageId = message.id,
-                        MessageText = message.message,
-                        ReceivedAt = message.date.ToUniversalTime(),
-                        Status = RawMessageStatus.Pending
-                    };
-                    await rawMessageRepository.AddAsync(newRawMessage);
-                    newMessagesFromThisChannel++;
-                }
-
-                if (newMessagesFromThisChannel > 0)
-                {
-                    channel.LastScrapedMessageId = messageList.Max(m => m.id);
-                    channel.LastScrapedAt = DateTime.UtcNow;
-                    channelRepository.Update(channel);
-
-                    await rawMessageRepository.SaveChangesAsync();
-                    _logger.LogInformation("Successfully stored {Count} new messages from {ChannelName}.", newMessagesFromThisChannel, channel.Name);
-                    totalNewMessagesInCycle += newMessagesFromThisChannel;
-                }
-
-                if (channel.DelayAfterScrapeMs > 0)
-                {
-                    _logger.LogDebug("Applying custom delay of {Delay}ms for channel {ChannelName}.", channel.DelayAfterScrapeMs, channel.Name);
-                    await Task.Delay(channel.DelayAfterScrapeMs, stoppingToken);
-                }
+                return await ScrapeChannelAsync(channel, rawMessageRepo, cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to scrape channel {ChannelName}. Continuing to the next channel.", channel.Name);
-                _workerState.UpdateStatus(WorkerActivity.Error, $"Error scraping channel {channel.Name}. Check logs.");
+                lastException = ex;
+
+                if (attempt < maxRetries)
+                {
+                    _logger.LogWarning(ex,
+                        "Attempt {Attempt}/{MaxRetries} failed for channel {ChannelName}. Retrying in {Seconds}s...",
+                        attempt, maxRetries, channel.Name, RETRY_DELAY_SECONDS);
+
+                    await Task.Delay(TimeSpan.FromSeconds(RETRY_DELAY_SECONDS * attempt), cancellationToken);
+                }
             }
         }
-        return totalNewMessagesInCycle;
+
+        // All retries failed
+        throw lastException ?? new Exception($"Failed to scrape channel {channel.Name} after {maxRetries} attempts");
+    }
+
+    /// <summary>
+    /// Scrapes a single channel
+    /// </summary>
+    private async Task<int> ScrapeChannelAsync(
+        Channel channel,
+        IRawMessageRepository rawMessageRepo,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Scraping channel: {ChannelName} (External ID: {ExternalId})",
+            channel.Name, channel.ExternalId);
+
+        // Determine fetch mode and parameters
+        var fetchMode = GetFetchMode(channel);
+        var fetchParameter = GetFetchParameter(channel, fetchMode);
+
+        // Fetch messages from Telegram
+        var messages = await _telegramClient.FetchMessagesAsync(
+            channel.ExternalId,
+            fetchMode,
+            fetchParameter);
+
+        if (!messages.Any())
+        {
+            return 0;
+        }
+
+        _logger.LogDebug("Retrieved {Count} messages from Telegram for channel: {ChannelName}",
+            messages.Count, channel.Name);
+
+        // Filter and store new messages
+        int newMessageCount = 0;
+
+        foreach (var message in messages)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            // Check if message already exists
+            var existingMessage = await rawMessageRepo.GetByExternalIdAsync(
+                channel.Id,
+                message.ExternalMessageId);
+
+            if (existingMessage != null)
+            {
+                _logger.LogTrace("Message {ExternalId} already exists, skipping",
+                    message.ExternalMessageId);
+                continue;
+            }
+
+            // Store new message
+            var rawMessage = new RawMessage
+            {
+                ChannelId = channel.Id,
+                ExternalMessageId = message.ExternalMessageId,
+                MessageText = message.MessageText,
+                ReceivedAt = message.ReceivedAt,
+                Status = RawMessageStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "ScraperWorker"
+            };
+
+            await rawMessageRepo.AddAsync(rawMessage);
+            newMessageCount++;
+        }
+
+        // Save all new messages in one transaction
+        if (newMessageCount > 0)
+        {
+            await rawMessageRepo.SaveChangesAsync();
+
+            // Update channel's last scraped info
+            channel.LastScrapedAt = DateTime.UtcNow;
+            if (messages.Any())
+            {
+                channel.LastScrapedMessageId = messages.Max(m => m.ExternalMessageId);
+            }
+
+            await rawMessageRepo.SaveChangesAsync();
+        }
+
+        return newMessageCount;
+    }
+
+    /// <summary>
+    /// Determines the fetch mode for a channel
+    /// </summary>
+    private TelegramFetchMode GetFetchMode(Channel channel)
+    {
+        // If channel has never been scraped, get recent messages
+        if (channel.LastScrapedAt == null)
+        {
+            return TelegramFetchMode.LastXMessages;
+        }
+
+        // If last scrape was recent (within 1 hour), fetch since last message
+        if (channel.LastScrapedAt.Value > DateTime.UtcNow.AddHours(-1))
+        {
+            return TelegramFetchMode.SinceLastMessage;
+        }
+
+        // Otherwise, fetch recent messages
+        return TelegramFetchMode.SinceXHoursAgo;
+    }
+
+    /// <summary>
+    /// Gets the fetch parameter based on mode
+    /// </summary>
+    private int GetFetchParameter(Channel channel, TelegramFetchMode mode)
+    {
+        return mode switch
+        {
+            TelegramFetchMode.LastXMessages => 50, // Get last 50 messages for new channels
+            TelegramFetchMode.SinceXHoursAgo => 24, // Get messages from last 24 hours
+            TelegramFetchMode.SinceLastMessage => (int)(channel.LastScrapedMessageId ?? 0),
+            _ => 50
+        };
+    }
+
+    /// <summary>
+    /// Gets scrape interval from configuration
+    /// </summary>
+    private int GetScrapeIntervalMinutes()
+    {
+        return _configuration.GetValue<int>(
+            "ScraperWorker.ScrapeIntervalMinutes",
+            DEFAULT_SCRAPE_INTERVAL_MINUTES);
+    }
+
+    /// <summary>
+    /// Gets delay between channels from configuration
+    /// </summary>
+    private int GetDelayBetweenChannels()
+    {
+        return _configuration.GetValue<int>(
+            "ScraperWorker.DelayBetweenChannelsMs",
+            DEFAULT_DELAY_BETWEEN_CHANNELS_MS);
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("ScraperWorker is stopping");
+        _workerState.UpdateStatus(WorkerActivity.Idle, "Worker is stop...");
+        await base.StopAsync(cancellationToken);
     }
 }

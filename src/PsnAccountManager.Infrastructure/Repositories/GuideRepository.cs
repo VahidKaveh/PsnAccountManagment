@@ -10,7 +10,7 @@ public class GuideRepository : GenericRepository<Guide, int>, IGuideRepository
 
     public async Task<IEnumerable<Guide>> GetActiveGuidesAsync()
     {
-        return await _dbSet
+        return await DbSet
             .AsNoTracking()
             .Where(g => g.IsActive)
             .ToListAsync();

@@ -12,7 +12,7 @@ public class SettingRepository : GenericRepository<Setting, string>, ISettingRep
 
     public async Task<T> GetValueAsync<T>(string key, T defaultValue)
     {
-        var setting = await _dbSet.FindAsync(key);
+        var setting = await DbSet.FindAsync(key);
         if (setting == null || string.IsNullOrEmpty(setting.Value))
         {
             return defaultValue;

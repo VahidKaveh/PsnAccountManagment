@@ -10,7 +10,7 @@ namespace PsnAccountManager.Infrastructure.Repositories
 
         public async Task<ParsingProfile?> GetByIdWithRulesAsync(int id)
         {
-            return await _dbSet.Include(p => p.Rules).FirstOrDefaultAsync(p => p.Id == id);
+            return await DbSet.Include(p => p.Rules).FirstOrDefaultAsync(p => p.Id == id);
         }
     }
 }

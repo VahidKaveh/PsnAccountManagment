@@ -40,6 +40,9 @@ builder.Services.AddScoped<IRequestRepository, RequestRepository>();
 builder.Services.AddScoped<ISettingRepository, SettingRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAdminNotificationRepository, AdminNotificationRepository>();
+builder.Services.AddScoped<ILearningDataRepository, LearningDataRepository>();
+builder.Services.AddScoped<IMessageParser, MessageParser>();
+
 
 
 // --- Application Layer Services ---

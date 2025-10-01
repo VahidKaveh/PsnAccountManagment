@@ -30,7 +30,7 @@ public class EditModel : PageModel
 
         [Required]
         [Display(Name = "Fetch Mode")]
-        public FetchMode FetchMode { get; set; }
+        public TelegramFetchMode TelegramFetchMode { get; set; }
 
         [Display(Name = "Fetch Value (e.g., 100 messages or 24 hours)")]
         public int? FetchValue { get; set; }
@@ -57,9 +57,10 @@ public class EditModel : PageModel
         {
             Id = channel.Id,
             Name = channel.Name,
+            
             Status = channel.Status,
             ParsingProfileId = channel.ParsingProfileId,
-            FetchMode = channel.FetchMode,
+            TelegramFetchMode = channel.TelegramFetchMode,
             FetchValue = channel.FetchValue,
             DelayAfterScrapeMs = channel.DelayAfterScrapeMs
         };
@@ -82,7 +83,7 @@ public class EditModel : PageModel
         channelToUpdate.Name = Input.Name;
         channelToUpdate.Status = Input.Status;
         channelToUpdate.ParsingProfileId = Input.ParsingProfileId;
-        channelToUpdate.FetchMode = Input.FetchMode;
+        channelToUpdate.TelegramFetchMode = Input.TelegramFetchMode;
         channelToUpdate.FetchValue = Input.FetchValue;
         channelToUpdate.DelayAfterScrapeMs = Input.DelayAfterScrapeMs;
 

@@ -64,14 +64,41 @@ public class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.Property(a => a.LastScrapedAt)
             .IsRequired();
 
+
+        builder.Property(a => a.ProcessedAt)
+            .IsRequired(false); // Nullable
+
+        builder.Property(a => a.ProcessingResult)
+            .IsRequired(false)
+            .HasMaxLength(500);
+
+  
+        builder.Property(a => a.RawMessageId)
+            .IsRequired(false); // Nullable
+
         // --- Indexes ---
+
         // A unique constraint to prevent duplicating the same message from the same channel
-        builder.HasIndex(a => new { a.ChannelId, a.ExternalId }).IsUnique();
+        builder.HasIndex(a => new { a.ChannelId, a.ExternalId })
+            .IsUnique();
+
+        // NEW: Index on ProcessedAt for filtering recently processed accounts
+        builder.HasIndex(a => a.ProcessedAt);
+
+        // NEW: Index on RawMessageId for tracking source message
+        builder.HasIndex(a => a.RawMessageId);
 
         // --- Relationships ---
+
         builder.HasOne(a => a.Channel)
             .WithMany(c => c.Accounts)
             .HasForeignKey(a => a.ChannelId)
             .OnDelete(DeleteBehavior.Cascade); // If a channel is deleted, its accounts are also deleted
+
+        // NEW: Relationship to RawMessage (optional)
+        builder.HasOne(a => a.RawMessage)
+            .WithOne() // No navigation property on RawMessage side to avoid circular reference
+            .HasForeignKey<Account>(a => a.RawMessageId)
+            .OnDelete(DeleteBehavior.SetNull); // If RawMessage deleted, keep Account but set FK to null
     }
 }

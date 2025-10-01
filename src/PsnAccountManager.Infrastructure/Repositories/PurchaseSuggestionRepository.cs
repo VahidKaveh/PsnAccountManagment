@@ -12,7 +12,7 @@ public class PurchaseSuggestionRepository(PsnAccountManagerDbContext context) : 
 {
     public async Task<IEnumerable<PurchaseSuggestion>> GetSuggestionsForUserAsync(int userId)
     {
-        return await _dbSet
+        return await DbSet
             .Where(s => s.UserId == userId)
             .Include(s => s.Account) // Include the suggested account details
             .OrderByDescending(s => s.Rank) // Order by the best rank

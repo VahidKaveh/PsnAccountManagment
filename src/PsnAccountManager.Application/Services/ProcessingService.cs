@@ -89,16 +89,12 @@ public class ProcessingService : IProcessingService
             finalGamesList.Add(new ParsedGameViewModel { Title = title, ExistsInDb = existingGame != null });
         }
 
-        parsedDto.Games = finalGamesList.OrderBy(g => g.ExistsInDb).ToList();
+        parsedDto.ExtractedGames = finalGamesList
+            .OrderBy(g => g.ExistsInDb)
+            .Select(g => g.Title) 
+            .ToList();
 
-        if (finalGamesList.Any())
-        {
-            parsedDto.Title = $"{channel.Name} #{rawMessage.ExternalMessageId} ({finalGamesList.Count} Games)";
-        }
-        else
-        {
-            parsedDto.Title = $"Account from {channel.Name} #{rawMessage.ExternalMessageId}";
-        }
+        parsedDto.Title = finalGamesList.Any() ? $"{channel.Name} #{rawMessage.ExternalMessageId} ({finalGamesList.Count} Games)" : $"Account from {channel.Name} #{rawMessage.ExternalMessageId}";
 
         return parsedDto;
     }
@@ -163,12 +159,12 @@ public class ProcessingService : IProcessingService
 
         if (lowerCaseInfo.Contains("z2") || lowerCaseInfo.Contains("capacity 2"))
         {
-            return AccountCapacity.Capacity2;
+            return AccountCapacity.Primary;
         }
 
         if (lowerCaseInfo.Contains("z3") || lowerCaseInfo.Contains("capacity 3") || lowerCaseInfo.Contains("full"))
         {
-            return AccountCapacity.Capacity3; // Capacity 3 is often considered Full Access
+            return AccountCapacity.Tertiary; // Capacity 3 is often considered Full Access
         }
 
         // Add more rules here as you discover new formats
@@ -186,7 +182,7 @@ public class ProcessingService : IProcessingService
         RawMessage rawMessage, Channel channel)
     {
         _logger.LogInformation("Creating new account from RawMessage ID: {RawMessageId}", rawMessage.Id);
-        var gameEntities = await GetOrCreateGames(viewModel.GameTitles);
+        var gameEntities = await GetOrCreateGames(viewModel.ExtractedGames);
 
         var newAccount = new Account
         {
@@ -254,7 +250,7 @@ public class ProcessingService : IProcessingService
         }
 
         // Sync games list
-        var submittedGameEntities = await GetOrCreateGames(viewModel.GameTitles);
+        var submittedGameEntities = await GetOrCreateGames(viewModel.ExtractedGames);
         var existingGameIds = existingAccount.AccountGames.Select(ag => ag.GameId).ToHashSet();
         var submittedGameIds = submittedGameEntities.Select(g => g.Id).ToHashSet();
 

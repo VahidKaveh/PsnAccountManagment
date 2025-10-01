@@ -1,5 +1,4 @@
 ﻿using PsnAccountManager.Shared.Enums;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace PsnAccountManager.Shared.DTOs;

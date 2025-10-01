@@ -31,8 +31,7 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AdditionalInfo")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Capacity")
                         .IsRequired()
@@ -41,6 +40,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     b.Property<int>("ChannelId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -71,9 +76,18 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<decimal?>("PricePs5")
                         .HasColumnType("decimal(18, 2)");
 
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ProcessingResult")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int?>("RawMessageId")
+                        .HasColumnType("int");
+
                     b.Property<string>("RecentChanges")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Region")
                         .HasMaxLength(100)
@@ -93,7 +107,18 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.HasIndex("RawMessageId")
+                        .IsUnique();
 
                     b.HasIndex("ChannelId", "ExternalId")
                         .IsUnique();
@@ -141,6 +166,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("FieldName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -150,6 +181,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("OldValue")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
@@ -170,6 +207,9 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<bool>("IsRead")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
@@ -180,6 +220,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     b.Property<string>("Message")
                         .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
@@ -196,17 +242,21 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("DelayAfterScrapeMs")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(1000);
 
-                    b.Property<string>("FetchMode")
+                    b.Property<string>("ExternalId")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .HasDefaultValue("SinceLastMessage");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<int?>("FetchValue")
                         .HasColumnType("int");
@@ -233,6 +283,19 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("longtext")
                         .HasColumnName("status");
 
+                    b.Property<string>("TelegramFetchMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasDefaultValue("SinceLastMessage");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ParsingProfileId");
@@ -253,6 +316,9 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("PurchaseId")
                         .HasColumnType("int")
                         .HasColumnName("purchase_id");
@@ -271,6 +337,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("longtext")
                         .HasColumnName("status");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PurchaseId");
@@ -288,6 +360,17 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnName("game_id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("description");
 
                     b.Property<string>("PosterUrl")
                         .HasMaxLength(500)
@@ -309,6 +392,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)")
                         .HasColumnName("title");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
@@ -332,6 +421,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("longtext")
                         .HasColumnName("content");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_active");
@@ -347,9 +442,96 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("varchar(255)")
                         .HasColumnName("title");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
+
                     b.HasKey("Id");
 
                     b.ToTable("Guides", (string)null);
+                });
+
+            modelBuilder.Entity("PsnAccountManager.Domain.Entities.LearningData", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ConfidenceLevel")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("EntityValue")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsManualCorrection")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUsedInTraining")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("OriginalText")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RawMessageId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RawMessageId1")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TextContext")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.HasIndex("EntityType");
+
+                    b.HasIndex("IsManualCorrection");
+
+                    b.HasIndex("IsUsedInTraining");
+
+                    b.HasIndex("RawMessageId");
+
+                    b.HasIndex("RawMessageId1");
+
+                    b.HasIndex("ChannelId", "EntityType");
+
+                    b.ToTable("LearningData", (string)null);
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.ParsingProfile", b =>
@@ -360,10 +542,22 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
@@ -378,6 +572,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("FieldType")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -389,6 +589,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
@@ -415,6 +621,9 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -429,6 +638,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext")
                         .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
@@ -456,6 +671,9 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("datetime(6)")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("SellerChannelId")
                         .HasColumnType("int");
 
@@ -466,6 +684,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18, 2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.HasKey("Id");
 
@@ -491,6 +715,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("account_id");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("MatchedGames")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -504,6 +734,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<int?>("RequestId")
                         .HasColumnType("int")
                         .HasColumnName("request_id");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int")
@@ -528,8 +764,17 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("AccountId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ChannelId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<long>("ExternalMessageId")
                         .HasColumnType("bigint");
@@ -538,14 +783,33 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ProcessingResult")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<DateTime>("ReceivedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.HasIndex("Status");
 
                     b.HasIndex("ChannelId", "ExternalMessageId")
                         .IsUnique();
@@ -561,11 +825,23 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime>("RequestedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
@@ -642,6 +918,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime>("LastActiveAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("last_active_at");
@@ -654,6 +936,12 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<long>("TelegramId")
                         .HasColumnType("bigint")
                         .HasColumnName("telegram_id");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -678,9 +966,21 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("GameId")
                         .HasColumnType("int")
                         .HasColumnName("game_id");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int")
@@ -704,7 +1004,14 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", "RawMessage")
+                        .WithOne()
+                        .HasForeignKey("PsnAccountManager.Domain.Entities.Account", "RawMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Channel");
+
+                    b.Navigation("RawMessage");
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.AccountGame", b =>
@@ -764,6 +1071,29 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Navigation("Purchase");
 
                     b.Navigation("RaisedBy");
+                });
+
+            modelBuilder.Entity("PsnAccountManager.Domain.Entities.LearningData", b =>
+                {
+                    b.HasOne("PsnAccountManager.Domain.Entities.Channel", "Channel")
+                        .WithMany("LearningData")
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", "RawMessage")
+                        .WithMany()
+                        .HasForeignKey("RawMessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", null)
+                        .WithMany("LearningData")
+                        .HasForeignKey("RawMessageId1");
+
+                    b.Navigation("Channel");
+
+                    b.Navigation("RawMessage");
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.ParsingProfileRule", b =>
@@ -843,11 +1173,18 @@ namespace PsnAccountManager.Infrastructure.Migrations
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.RawMessage", b =>
                 {
+                    b.HasOne("PsnAccountManager.Domain.Entities.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("PsnAccountManager.Domain.Entities.Channel", "Channel")
                         .WithMany("RawMessages")
                         .HasForeignKey("ChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Account");
 
                     b.Navigation("Channel");
                 });
@@ -914,6 +1251,8 @@ namespace PsnAccountManager.Infrastructure.Migrations
                 {
                     b.Navigation("Accounts");
 
+                    b.Navigation("LearningData");
+
                     b.Navigation("RawMessages");
 
                     b.Navigation("Sales");
@@ -938,6 +1277,11 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Navigation("Disputes");
 
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("PsnAccountManager.Domain.Entities.RawMessage", b =>
+                {
+                    b.Navigation("LearningData");
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.Request", b =>

@@ -26,7 +26,7 @@ public class ScraperService : IScraperService // This class implements the inter
     /// Processes a single piece of parsed data. This method's signature
     /// EXACTLY matches the one defined in IScraperService.
     /// </summary>
-    public async Task ProcessScrapedDataAsync(int channelId, ParsedAccountDto? parsedData) // ✅ The '?' is critical and matches the interface
+    public async Task ProcessScrapedDataAsync(int channelId, ParsedAccountDto? parsedData) 
     {
         // Step 1: Validate input.
         if (parsedData == null || string.IsNullOrWhiteSpace(parsedData.ExternalId))
@@ -85,7 +85,7 @@ public class ScraperService : IScraperService // This class implements the inter
                 LastScrapedAt = DateTime.UtcNow,
                 IsDeleted = false,
                 StockStatus = StockStatus.InStock,
-                Capacity = AccountCapacity.Capacity1,
+                Capacity = AccountCapacity.OfflineOnly,
             };
             await _accountRepository.AddAsync(newAccount);
             _logger.LogInformation("New account created from scrape: ExternalId {ExternalId} in Channel {ChannelId}", parsedData.ExternalId, channelId);

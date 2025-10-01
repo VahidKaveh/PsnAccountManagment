@@ -14,7 +14,7 @@ public class AdminNotificationRepository : GenericRepository<AdminNotification, 
 
     public async Task<IEnumerable<AdminNotification>> GetUnreadNotificationsAsync(int take = 10)
     {
-        return await _dbSet
+        return await DbSet
             .Where(n => !n.IsRead)
             .OrderByDescending(n => n.CreatedAt)
             .Take(take)
@@ -25,19 +25,19 @@ public class AdminNotificationRepository : GenericRepository<AdminNotification, 
     {
         // This is an efficient way to update multiple records in the database
         // without loading them into memory first.
-        await _dbSet
+        await DbSet
             .Where(n => !n.IsRead)
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
     }
 
     public async Task MarkAsReadAsync(int notificationId)
     {
-        var notification = await _dbSet.FindAsync(notificationId);
+        var notification = await DbSet.FindAsync(notificationId);
         if (notification != null && !notification.IsRead)
         {
             notification.IsRead = true;
-            _dbSet.Update(notification);
-            await _context.SaveChangesAsync();
+            DbSet.Update(notification);
+            await Context.SaveChangesAsync();
         }
     }
 }

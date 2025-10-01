@@ -1,37 +1,29 @@
 ﻿using PsnAccountManager.Shared.Enums;
-using System.Collections.Generic;
 
 namespace PsnAccountManager.Domain.Entities;
 
+/// <summary>
+/// Represents a source channel for scraping accounts
+/// </summary>
 public class Channel : BaseEntity<int>
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string ExternalId { get; set; } = string.Empty;
+
     public ChannelStatus Status { get; set; }
     public DateTime? LastScrapedAt { get; set; }
     public int? LastScrapedMessageId { get; set; }
-
     public int? ParsingProfileId { get; set; }
+
+    // Scraper Configuration
+    public TelegramFetchMode TelegramFetchMode { get; set; } = TelegramFetchMode.SinceLastMessage;
+    public int? FetchValue { get; set; }
+    public int DelayAfterScrapeMs { get; set; } = 1000;
+
+    // Navigation Properties
     public virtual ParsingProfile? ParsingProfile { get; set; }
-
-    /// <summary>
-    /// The strategy to use for fetching messages from this channel.
-    /// </summary>
-    public FetchMode FetchMode { get; set; } = FetchMode.SinceLastMessage; // Default value
-
-    /// <summary>
-    /// The value associated with the FetchMode.
-    /// - For LastXMessages, this is the number of messages.
-    /// - For SinceXHoursAgo, this is the number of hours.
-    /// </summary>
-    public int? FetchValue { get; set; } // Nullable, as it's not needed for the default mode
-
-    /// <summary>
-    /// An optional delay in milliseconds to wait after scraping this channel
-    /// before moving to the next one.
-    /// </summary>
-    public int DelayAfterScrapeMs { get; set; } = 1000; // Default to 1 second
-    public virtual ICollection<RawMessage> RawMessages { get; set; } = new List<RawMessage>();
-
     public virtual ICollection<Account> Accounts { get; set; } = new List<Account>();
     public virtual ICollection<Purchase> Sales { get; set; } = new List<Purchase>();
+    public virtual ICollection<RawMessage> RawMessages { get; set; } = new List<RawMessage>();
+    public virtual ICollection<LearningData> LearningData { get; set; } = new List<LearningData>();
 }

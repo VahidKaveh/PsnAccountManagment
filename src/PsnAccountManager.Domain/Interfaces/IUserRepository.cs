@@ -1,23 +1,40 @@
 ﻿using PsnAccountManager.Domain.Entities;
-using System.Threading.Tasks;
+using System.Linq.Expressions;
 
 namespace PsnAccountManager.Domain.Interfaces;
 
 /// <summary>
-/// Defines the contract for data access operations related to the User entity.
-/// It extends the generic repository for basic CRUD operations and adds user-specific methods.
+/// Repository interface for User entity operations
 /// </summary>
 public interface IUserRepository : IGenericRepository<User, int>
 {
+    // ==================== EXISTING METHODS ====================
+
     /// <summary>
-    /// Finds a user by their unique Telegram ID.
-    /// This is crucial for identifying users interacting via a bot.
+    /// Finds a user by their unique Telegram ID
     /// </summary>
-    /// <param name="telegramId">The user's unique Telegram identifier.</param>
-    /// <returns>The User entity if found; otherwise, null.</returns>
     Task<User?> GetByTelegramIdAsync(long telegramId);
 
-    // In the future, you might add methods for pagination or searching:
-    // Task<IEnumerable<User>> GetUsersPagedAsync(int pageNumber, int pageSize);
-    // Task<IEnumerable<User>> SearchByUsernameAsync(string username);
+
+    // ==================== NEW METHODS ====================
+
+    /// <summary>
+    /// Gets user with all purchases
+    /// </summary>
+    Task<User?> GetUserWithPurchasesAsync(int userId);
+
+    /// <summary>
+    /// Gets user with wishlist
+    /// </summary>
+    Task<User?> GetUserWithWishlistAsync(int userId);
+
+    /// <summary>
+    /// Gets count of active users
+    /// </summary>
+    Task<int> GetActiveUsersCountAsync();
+
+    /// <summary>
+    /// Gets recently active users
+    /// </summary>
+    Task<IEnumerable<User>> GetRecentlyActiveAsync(int count = 50);
 }

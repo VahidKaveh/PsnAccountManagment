@@ -4,5 +4,6 @@ public enum RawMessageStatus
 {
     Pending,
     Processed,
-    Ignored
+    Ignored,
+    Failed
 }

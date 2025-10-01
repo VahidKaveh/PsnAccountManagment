@@ -8,5 +8,5 @@ public interface IAccountService
     Task<IEnumerable<AccountDto>> GetAvailableAccountsAsync();
     Task<AccountDto> CreateAccountAsync(CreateAccountDto createDto);
     Task<bool> UpdateAccountAsync(int id, UpdateAccountDto updateDto);
-    Task<bool> DeleteAccountAsync(int id); // Soft delete
+    Task<bool> DeleteAccountAsync(int id); 
 }

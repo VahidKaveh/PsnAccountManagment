@@ -33,7 +33,7 @@ public class CreateModel : PageModel
 
         [Required]
         [Display(Name = "Fetch Mode")]
-        public FetchMode FetchMode { get; set; }
+        public TelegramFetchMode TelegramFetchMode { get; set; }
 
         [Display(Name = "Fetch Value (e.g., 100 messages or 24 hours)")]
         public int? FetchValue { get; set; }
@@ -67,9 +67,10 @@ public class CreateModel : PageModel
         var newChannel = new Channel
         {
             Name = Input.Name,
+            ExternalId = Input.Name,
             Status = Input.Status,
             ParsingProfileId = Input.ParsingProfileId,
-            FetchMode = Input.FetchMode,
+            TelegramFetchMode = Input.TelegramFetchMode,
             FetchValue = Input.FetchValue,
             DelayAfterScrapeMs = Input.DelayAfterScrapeMs
         };

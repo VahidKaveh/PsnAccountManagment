@@ -5,29 +5,23 @@ using System.Linq.Expressions;
 
 namespace PsnAccountManager.Infrastructure.Repositories;
 
-public class GenericRepository<T, TId> : IGenericRepository<T, TId> where T : class
+public class GenericRepository<T, TId>(PsnAccountManagerDbContext context) : IGenericRepository<T, TId> where T : class
 {
-    protected readonly PsnAccountManagerDbContext _context;
-    protected readonly DbSet<T> _dbSet;
+    protected readonly PsnAccountManagerDbContext Context = context;
+    protected readonly DbSet<T> DbSet = context.Set<T>();
 
-    public GenericRepository(PsnAccountManagerDbContext context)
-    {
-        _context = context;
-        _dbSet = context.Set<T>();
-    }
+    public async Task<T?> GetByIdAsync(TId id) => await DbSet.FindAsync(id);
 
-    public async Task<T?> GetByIdAsync(TId id) => await _dbSet.FindAsync(id);
-
-    public async Task<IEnumerable<T>> GetAllAsync() => await _dbSet.ToListAsync();
+    public async Task<IEnumerable<T>> GetAllAsync() => await DbSet.ToListAsync();
 
     public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> expression) =>
-        await _dbSet.Where(expression).ToListAsync();
+        await DbSet.Where(expression).ToListAsync();
 
-    public async Task AddAsync(T entity) => await _dbSet.AddAsync(entity);
+    public async Task AddAsync(T entity) => await DbSet.AddAsync(entity);
 
-    public void Update(T entity) => _dbSet.Update(entity);
+    public void Update(T entity) => DbSet.Update(entity);
 
-    public void Remove(T entity) => _dbSet.Remove(entity);
+    public void Remove(T entity) => DbSet.Remove(entity);
 
-    public async Task<int> SaveChangesAsync() => await _context.SaveChangesAsync();
+    public async Task<int> SaveChangesAsync() => await Context.SaveChangesAsync();
 }

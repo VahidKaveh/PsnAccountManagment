@@ -6,7 +6,6 @@ namespace PsnAccountManager.Infrastructure.Data;
 
 public class PsnAccountManagerDbContext(DbContextOptions<PsnAccountManagerDbContext> options) : DbContext(options)
 {
-
     // DbSets for all entities
     public DbSet<User> Users { get; set; }
     public DbSet<Channel> Channels { get; set; }
@@ -28,11 +27,14 @@ public class PsnAccountManagerDbContext(DbContextOptions<PsnAccountManagerDbCont
     public DbSet<AccountHistory> AccountHistories { get; set; }
     public DbSet<AdminNotification> AdminNotifications { get; set; }
 
+
+    public DbSet<LearningData> LearningData { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // This line automatically applies all configurations from IEntityTypeConfiguration<T>
+        // This line automatically applies all configurations from IEntityTypeConfiguration
         // classes in the current assembly. This is the cleanest approach.
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 

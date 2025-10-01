@@ -18,6 +18,10 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .IsRequired()
             .HasMaxLength(150);
 
+        builder.Property(c => c.ExternalId)
+            .IsRequired()
+            .HasMaxLength(200);
+
         builder.Property(c => c.Status)
             .HasColumnName("status")
             .IsRequired()
@@ -33,11 +37,11 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .WithMany(p => p.Channels)
             .HasForeignKey(c => c.ParsingProfileId)
             .OnDelete(DeleteBehavior.SetNull); // If a profile is deleted, don't delete the channel
-        builder.Property(c => c.FetchMode)
+        builder.Property(c => c.TelegramFetchMode)
             .IsRequired()
             .HasConversion<string>() // Store enum as a string
             .HasMaxLength(50)
-            .HasDefaultValue(FetchMode.SinceLastMessage);
+            .HasDefaultValue(TelegramFetchMode.SinceLastMessage);
 
         builder.Property(c => c.FetchValue)
             .IsRequired(false); // This value is nullable
