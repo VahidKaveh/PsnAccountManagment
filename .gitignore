@@ -1,0 +1,12 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs/PsnAccountManager/CopilotIndices/17.14.1204.46620
+/src/PsnAccountManager.Admin.Panel/obj
+/src/PsnAccountManager.Application/obj/Debug/net9.0
+/src/PsnAccountManager.Application/obj
+/src/PsnAccountManager.Domain/obj
+/src/PsnAccountManager.Infrastructure/obj
+/src/PsnAccountManager.Shared/obj
+/.vs/PsnAccountManager/FileContentIndex
