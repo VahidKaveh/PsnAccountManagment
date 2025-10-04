@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Shared.Enums;
 using PsnAccountManager.Shared.ViewModels;
@@ -101,5 +101,10 @@ public interface IAccountRepository : IGenericRepository<Account, int>
     /// Gets all active accounts for a specific channel
     /// </summary>
     Task<IEnumerable<Account>> GetActiveAccountsForChannelAsync(int channelId);
+
+    /// <summary>
+    /// Gets all accounts for a specific channel (for simple matching)
+    /// </summary>
+    Task<IEnumerable<Account>> GetByChannelIdAsync(int channelId);
 
 }
