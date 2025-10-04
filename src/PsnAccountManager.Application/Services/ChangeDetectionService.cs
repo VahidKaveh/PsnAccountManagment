@@ -14,7 +14,6 @@ namespace PsnAccountManager.Application.Services
     {
         private readonly IRawMessageRepository _rawMessageRepo;
         private readonly ILogger<ChangeDetectionService> _logger;
-        // حذف dependency به IProcessingService برای جلوگیری از circular reference
         private readonly IAccountRepository _accountRepository;
 
         public ChangeDetectionService(
@@ -107,7 +106,7 @@ namespace PsnAccountManager.Application.Services
                         existingMessage.UpdatedBy = "System";
                         existingMessage.ErrorMessage = "Message deleted from channel before processing";
                         
-                        await _rawMessageRepo.UpdateAsync(existingMessage);
+                        _rawMessageRepo.Update(existingMessage);
                         await _rawMessageRepo.SaveChangesAsync();
                         
                         return false; // هیچ change جدیدی ایجاد نکن

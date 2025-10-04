@@ -81,7 +81,7 @@ public class ProcessingService : IProcessingService
             message.Status = RawMessageStatus.Processing;
             message.UpdatedAt = DateTime.UtcNow;
             message.UpdatedBy = "ProcessingService";
-            await _rawMessageRepo.UpdateAsync(message);
+            _rawMessageRepo.Update(message);
             await _rawMessageRepo.SaveChangesAsync();
 
             try
@@ -134,7 +134,7 @@ public class ProcessingService : IProcessingService
                 account.StockStatus = StockStatus.OutOfStock;
                 account.UpdatedAt = DateTime.UtcNow;
 
-                await _accountRepository.UpdateAsync(account);
+                _accountRepository.Update(account);
                 await _accountRepository.SaveChangesAsync();
 
                 // Create admin notification
@@ -203,7 +203,7 @@ public class ProcessingService : IProcessingService
                 RegexOptions.IgnoreCase
             );
             
-            if (newPriceMatch.Success && decimal.TryParse(newPriceMatch.Groups.Value, out decimal newPrice))
+            if (newPriceMatch.Success && decimal.TryParse(newPriceMatch.Groups[1].Value, out decimal newPrice))
             {
                 // Determine if it's PS4 or PS5 price based on message content
                 if (message.MessageText.ToLower().Contains("ps5"))
@@ -229,7 +229,7 @@ public class ProcessingService : IProcessingService
         account.Description = message.MessageText;
         account.LastScrapedAt = DateTime.UtcNow;
 
-        await _accountRepository.UpdateAsync(account);
+        _accountRepository.Update(account);
 
         // ایجاد notification برای admin
         await CreateAdminNotificationAsync(
@@ -272,7 +272,7 @@ public class ProcessingService : IProcessingService
             matchedAccount.LastScrapedAt = DateTime.UtcNow;
             matchedAccount.UpdatedAt = DateTime.UtcNow;
             
-            await _accountRepository.UpdateAsync(matchedAccount);
+            _accountRepository.Update(matchedAccount);
             
             _logger.LogInformation($"Message {message.Id} matched to existing account {matchedAccount.Id}");
         }
@@ -538,7 +538,7 @@ public class ProcessingService : IProcessingService
                 rawMessage.Status = RawMessageStatus.Pending; // Process the change
                 
                 // Save the updated raw message BEFORE processing content
-                await _rawMessageRepo.UpdateAsync(rawMessage);
+                _rawMessageRepo.Update(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
                 
                 _logger.LogInformation("Change marked and saved for message {MessageId}, proceeding with processing", rawMessageId);
@@ -549,7 +549,7 @@ public class ProcessingService : IProcessingService
                 rawMessage.Status = RawMessageStatus.Pending;
                 rawMessage.IsChange = false;
                 
-                await _rawMessageRepo.UpdateAsync(rawMessage);
+                _rawMessageRepo.Update(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
                 
                 _logger.LogDebug("No content change detected for message {MessageId}, processing normally", rawMessageId);
@@ -783,7 +783,7 @@ public class ProcessingService : IProcessingService
         foreach (var game in gameEntities)
             existingAccount.AccountGames.Add(new AccountGame { Account = existingAccount, Game = game });
 
-        await _accountRepository.UpdateAsync(existingAccount);
+        _accountRepository.Update(existingAccount);
         await _accountRepository.SaveChangesAsync();
 
         _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId}), Change: {IsChange}",
