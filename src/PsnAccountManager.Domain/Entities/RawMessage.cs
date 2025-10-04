@@ -50,4 +50,6 @@ public class RawMessage : BaseEntity<int>
     /// </summary>
     [MaxLength(2000)]
     public string? ChangeDetails { get; set; }
+
+    public string ErrorMessage { get; set; }
 }

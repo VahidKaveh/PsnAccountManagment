@@ -733,6 +733,10 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<long>("ExternalMessageId")
                         .HasColumnType("bigint");
 
