@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Shared.Enums;
 
@@ -37,6 +37,7 @@ public interface IRawMessageRepository : IGenericRepository<RawMessage, int>
     /// Counts messages by status
     /// </summary>
     Task<int> CountByStatusAsync(RawMessageStatus status);
+    
     /// <summary>
     /// Gets messages by their status
     /// </summary>
@@ -91,4 +92,31 @@ public interface IRawMessageRepository : IGenericRepository<RawMessage, int>
     /// Marks a message as ignored
     /// </summary>
     Task MarkAsIgnoredAsync(int id);
+
+    // ============== NEW METHODS FOR PROCESSING SERVICE ==============
+    
+    /// <summary>
+    /// Gets total message count across all statuses
+    /// </summary>
+    Task<int> GetTotalMessageCountAsync();
+
+    /// <summary>
+    /// Gets count of pending messages
+    /// </summary>
+    Task<int> GetPendingMessageCountAsync();
+
+    /// <summary>
+    /// Gets count of processed messages
+    /// </summary>
+    Task<int> GetProcessedMessageCountAsync();
+
+    /// <summary>
+    /// Gets count of failed messages  
+    /// </summary>
+    Task<int> GetFailedMessageCountAsync();
+
+    /// <summary>
+    /// Gets count of change messages
+    /// </summary>
+    Task<int> GetChangeMessageCountAsync();
 }
