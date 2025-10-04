@@ -1,4 +1,4 @@
-﻿using PsnAccountManager.Shared.Enums;
+using PsnAccountManager.Shared.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace PsnAccountManager.Domain.Entities;
@@ -22,7 +22,6 @@ public class RawMessage : BaseEntity<int>
     // Navigation Properties
     public virtual Channel Channel { get; set; } = null!;
     public virtual Account? Account { get; set; }
-
 
     /// <summary>
     /// SHA256 hash of normalized message content for change detection
@@ -51,5 +50,9 @@ public class RawMessage : BaseEntity<int>
     [MaxLength(2000)]
     public string? ChangeDetails { get; set; }
 
-    public string ErrorMessage { get; set; }
+    /// <summary>
+    /// Error message if processing failed (nullable)
+    /// </summary>
+    [MaxLength(4000)]
+    public string? ErrorMessage { get; set; }
 }
