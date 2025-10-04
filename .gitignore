@@ -482,3 +482,5 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+/src/PsnAccountManager.Admin.Panel/telegram.session
+/src/PsnAccountManager.Admin.Panel/appsettings.json
