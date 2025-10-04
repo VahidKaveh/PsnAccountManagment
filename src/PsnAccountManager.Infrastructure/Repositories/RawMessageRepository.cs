@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -370,5 +370,62 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
             }
         }
 
+    // ============== NEW METHODS - پیاده‌سازی متدهای مفقود ==============
+    
+    /// <summary>
+    /// Gets total message count across all statuses
+    /// </summary>
+    public async Task<int> GetTotalMessageCountAsync()
+    {
+        try
+        {
+            return await DbSet.CountAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting total message count");
+            return 0;
+        }
+    }
 
+    /// <summary>
+    /// Gets count of pending messages (alias for GetPendingCountAsync)
+    /// </summary>
+    public async Task<int> GetPendingMessageCountAsync()
+    {
+        return await GetPendingCountAsync();
+    }
+
+    /// <summary>
+    /// Gets count of processed messages (alias for GetProcessedCountAsync)
+    /// </summary>
+    public async Task<int> GetProcessedMessageCountAsync()
+    {
+        return await GetProcessedCountAsync();
+    }
+
+    /// <summary>
+    /// Gets count of failed messages (alias for GetFailedCountAsync)
+    /// </summary>
+    public async Task<int> GetFailedMessageCountAsync()
+    {
+        return await GetFailedCountAsync();
+    }
+
+    /// <summary>
+    /// Gets count of change messages
+    /// </summary>
+    public async Task<int> GetChangeMessageCountAsync()
+    {
+        try
+        {
+            return await DbSet
+                .CountAsync(m => m.IsChange == true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting change message count");
+            return 0;
+        }
+    }
 }
