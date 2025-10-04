@@ -1,11 +1,9 @@
-﻿using Microsoft.Build.Framework;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Infrastructure.Data;
 using PsnAccountManager.Shared.Enums;
-using System.Linq;
 
 namespace PsnAccountManager.Infrastructure.Repositories;
 
@@ -21,6 +19,43 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
         ILogger<RawMessageRepository> logger) : base(context)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+   
+
+    public async Task<List<RawMessage>> GetInboxMessagesAsync(int skip = 0, int take = 20)
+    {
+        return await Context.RawMessages
+            .Include(m => m.Channel)
+            .Include(m => m.Account)
+            .Where(m => m.Status != RawMessageStatus.Deleted && m.Status != RawMessageStatus.Processed) // فیلتر کردن Deleted
+            .OrderByDescending(m => m.ReceivedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
+    }
+
+    public async Task<int> GetInboxMessageCountAsync()
+    {
+        return await Context.RawMessages
+            .CountAsync(m => m.Status != RawMessageStatus.Deleted && m.Status != RawMessageStatus.Processed); // فیلتر کردن Deleted
+    }
+
+    public async Task<List<RawMessage>> GetProcessingMessagesAsync(int skip = 0, int take = 20)
+    {
+        return await Context.RawMessages
+            .Include(m => m.Channel)
+            .Include(m => m.Account)
+            .Where(m => m.Status == RawMessageStatus.Processed)
+            .OrderByDescending(m => m.UpdatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
+    }
+
+    public async Task<int> GetProcessingMessageCountAsync()
+    {
+        return await Context.RawMessages
+            .CountAsync(m => m.Status == RawMessageStatus.Processing);
     }
 
 

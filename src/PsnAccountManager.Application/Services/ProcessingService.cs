@@ -7,6 +7,8 @@ using PsnAccountManager.Shared.DTOs;
 using PsnAccountManager.Shared.Enums;
 using PsnAccountManager.Shared.ViewModels;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace PsnAccountManager.Application.Services;
 
@@ -27,6 +29,9 @@ public class ProcessingService : IProcessingService
     private readonly IChangeDetectionService _changeDetectionService;
     private readonly IAdminNotificationRepository _notificationRepository;
     private readonly IChannelRepository _channelRepository;
+    private readonly IMatcherService _matcherService;
+    private readonly IChangeTrackerService _changeTrackerService;
+    private readonly IWorkerStateService _workerStateService;
     private readonly IConfiguration _configuration;
 
     public ProcessingService(
@@ -38,6 +43,9 @@ public class ProcessingService : IProcessingService
         IChangeDetectionService changeDetectionService,
         IAdminNotificationRepository notificationRepository,
         IChannelRepository channelRepository,
+        IMatcherService matcherService,
+        IChangeTrackerService changeTrackerService,
+        IWorkerStateService workerStateService,
         IConfiguration configuration)
     {
         _rawMessageRepo = rawMessageRepo;
@@ -48,15 +56,417 @@ public class ProcessingService : IProcessingService
         _changeDetectionService = changeDetectionService;
         _notificationRepository = notificationRepository;
         _channelRepository = channelRepository;
+        _matcherService = matcherService;
+        _changeTrackerService = changeTrackerService;
+        _workerStateService = workerStateService;
         _configuration = configuration;
     }
+
+    // ==================== NEW METHOD: Direct Message Processing ====================
+    /// <summary>
+    /// Processes a single message by ID with enhanced error handling and change detection
+    /// </summary>
+    public async Task ProcessMessageAsync(int messageId)
+    {
+        try
+        {
+            var message = await _rawMessageRepo.GetByIdAsync(messageId);
+            if (message == null)
+            {
+                _logger.LogWarning($"Message with ID {messageId} not found");
+                return;
+            }
+
+            // اگر پیغام قبلاً پردازش شده
+            if (message.ProcessedAt.HasValue)
+            {
+                _logger.LogInformation($"Message {messageId} already processed at {message.ProcessedAt}");
+                return;
+            }
+
+            _logger.LogInformation($"Processing message {messageId}, IsChange: {message.IsChange}, Status: {message.Status}");
+
+            // Update processing status
+            message.Status = RawMessageStatus.Processing;
+            message.UpdatedAt = DateTime.UtcNow;
+            message.UpdatedBy = "ProcessingService";
+            _rawMessageRepo.Update(message);
+            await _rawMessageRepo.SaveChangesAsync();
+
+            try
+            {
+                if (message.Status == RawMessageStatus.Deleted)
+                {
+                    await ProcessDeletedMessageAsync(message);
+                }
+                else if (message.IsChange)
+                {
+                    await ProcessChangeMessageAsync(message);
+                }
+                else
+                {
+                    await ProcessNewMessageAsync(message);
+                }
+
+                // Mark as successfully processed using repository method
+                await _rawMessageRepo.MarkAsProcessedAsync(messageId, message.AccountId);
+
+                _logger.LogInformation($"Message {messageId} processed successfully");
+            }
+            catch (Exception ex)
+            {
+                // Mark as failed using repository method
+                await _rawMessageRepo.MarkAsFailedAsync(messageId, ex.Message);
+                _logger.LogError(ex, $"Error processing message {messageId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Critical error processing message {messageId}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Process messages that were deleted from channel before processing
+    /// </summary>
+    private async Task ProcessDeletedMessageAsync(RawMessage message)
+    {
+        _logger.LogInformation($"Processing deleted message {message.Id}");
+
+        if (message.AccountId.HasValue)
+        {
+            var account = await _accountRepository.GetByIdAsync(message.AccountId.Value);
+            if (account != null)
+            {
+                // Mark account as deleted/unavailable
+                account.StockStatus = StockStatus.OutOfStock;
+                account.UpdatedAt = DateTime.UtcNow;
+
+                _accountRepository.Update(account);
+                await _accountRepository.SaveChangesAsync();
+
+                // Create admin notification
+                await CreateAdminNotificationAsync(
+                    AdminNotificationType.AccountDeleted,
+                    "Account Deleted Before Processing",
+                    $"Account '{account.Title}' was deleted from channel before processing",
+                    NotificationPriority.High,
+                    message.Id,
+                    "RawMessage",
+                    new { AccountId = account.Id, AccountTitle = account.Title }
+                );
+
+                _logger.LogInformation($"Account {account.Id} marked as out of stock due to message deletion");
+            }
+        }
+
+        // Create admin notification for unprocessed deletion
+        await CreateAdminNotificationAsync(
+            AdminNotificationType.MessageDeleted,
+            "Unprocessed Message Deleted",
+            "A message was deleted from channel before admin review",
+            NotificationPriority.Normal,
+            message.Id,
+            "RawMessage",
+            new { ChannelId = message.ChannelId, ExternalMessageId = message.ExternalMessageId }
+        );
+    }
+
+    /// <summary>
+    /// Process change messages (updates to existing content)
+    /// </summary>
+    private async Task ProcessChangeMessageAsync(RawMessage message)
+    {
+        _logger.LogInformation($"Processing change message {message.Id}");
+
+        if (!message.AccountId.HasValue)
+        {
+            _logger.LogWarning($"Change message {message.Id} has no associated account");
+            return;
+        }
+
+        var account = await _accountRepository.GetByIdAsync(message.AccountId.Value);
+        if (account == null)
+        {
+            _logger.LogWarning($"Account {message.AccountId} not found for change message {message.Id}");
+            return;
+        }
+
+        // بررسی نوع تغییر و اعمال آن
+        var changeDetails = message.ChangeDetails ?? "";
+        var changeType = AdminNotificationType.AccountUpdated;
+
+        if (changeDetails.Contains("DELETED"))
+        {
+            account.StockStatus = StockStatus.OutOfStock;
+            account.UpdatedAt = DateTime.UtcNow;
+            changeType = AdminNotificationType.AccountDeleted;
+        }
+        else if (changeDetails.Contains("PRICE_CHANGED"))
+        {
+            // استخراج قیمت جدید و به‌روزرسانی
+            var newPriceMatch = Regex.Match(
+                message.MessageText,
+                @"(\d+(?:\.\d+)?)\s*(?:تومان|تومن|T)",
+                RegexOptions.IgnoreCase
+            );
+
+            if (newPriceMatch.Success && decimal.TryParse(newPriceMatch.Groups[1].Value, out decimal newPrice))
+            {
+                // Determine if it's PS4 or PS5 price based on message content
+                if (message.MessageText.ToLower().Contains("ps5"))
+                {
+                    account.PricePs5 = newPrice;
+                }
+                else
+                {
+                    account.PricePs4 = newPrice;
+                }
+                account.UpdatedAt = DateTime.UtcNow;
+            }
+            changeType = AdminNotificationType.PriceChanged;
+        }
+        else if (changeDetails.Contains("STATUS_CHANGED"))
+        {
+            // به‌روزرسانی وضعیت اکانت
+            account.UpdatedAt = DateTime.UtcNow;
+            changeType = AdminNotificationType.StatusChanged;
+        }
+
+        // Update description with new message content
+        account.Description = message.MessageText;
+        account.LastScrapedAt = DateTime.UtcNow;
+
+        _accountRepository.Update(account);
+
+        // ایجاد notification برای admin
+        await CreateAdminNotificationAsync(
+            changeType,
+            $"Account '{account.Title}' Updated",
+            $"Account has been updated with changes: {changeDetails}",
+            NotificationPriority.Normal,
+            account.Id,
+            "Account",
+            new
+            {
+                ChangeDetails = changeDetails,
+                MessageId = message.Id,
+                ChannelId = message.ChannelId
+            }
+        );
+
+        // Track the change if service is available
+        try
+        {
+            await _changeTrackerService.TrackChangeAsync(
+                account.Id,
+                "AccountUpdate",
+                changeDetails,
+                DateTime.UtcNow
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, $"Could not track change for account {account.Id}");
+        }
+
+        _logger.LogInformation($"Account {account.Id} updated successfully with changes: {changeDetails}");
+    }
+
+    /// <summary>
+    /// Process new messages (not changes to existing content)
+    /// </summary>
+    private async Task ProcessNewMessageAsync(RawMessage message)
+    {
+        _logger.LogInformation($"Processing new message {message.Id}");
+
+        // تلاش برای تطبیق پیغام با اکانت موجود
+        var matchedAccount = await _matcherService.FindMatchingAccountAsync(message.MessageText, message.ChannelId);
+
+        if (matchedAccount != null)
+        {
+            // Link message to existing account
+            message.AccountId = matchedAccount.Id;
+
+            // Update account info if needed
+            matchedAccount.LastScrapedAt = DateTime.UtcNow;
+            matchedAccount.UpdatedAt = DateTime.UtcNow;
+
+            _accountRepository.Update(matchedAccount);
+
+            _logger.LogInformation($"Message {message.Id} matched to existing account {matchedAccount.Id}");
+        }
+        else
+        {
+            // Try to parse and create new account
+            var result = await ProcessRawMessageAsync(message.Id);
+            if (result.Success)
+            {
+                _logger.LogInformation($"New account created from message {message.Id}: {result.AccountTitle}");
+            }
+            else
+            {
+                // Create notification for new unmatched message
+                await CreateAdminNotificationAsync(
+                    AdminNotificationType.NewMessage,
+                    "New Unmatched Message",
+                    "New message requires admin review",
+                    NotificationPriority.Low,
+                    message.Id,
+                    "RawMessage",
+                    new
+                    {
+                        MessagePreview = message.MessageText.Length > 100
+                            ? message.MessageText.Substring(0, 100) + "..."
+                            : message.MessageText
+                    }
+                );
+
+                _logger.LogInformation($"New message {message.Id} requires admin review");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Process all pending messages in batch
+    /// </summary>
+    public async Task ProcessAllPendingMessagesAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting batch processing of pending messages");
+
+            // Use repository method to get pending messages
+            var pendingMessages = await _rawMessageRepo.GetPendingMessagesWithChannelAsync();
+            var processedCount = 0;
+            var failedCount = 0;
+
+            foreach (var message in pendingMessages)
+            {
+                try
+                {
+                    await ProcessMessageAsync(message.Id);
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Failed to process message {message.Id}");
+                    failedCount++;
+                }
+            }
+
+            _logger.LogInformation($"Batch processing completed. Processed: {processedCount}, Failed: {failedCount}");
+
+            // Create summary notification for batch processing
+            if (processedCount > 0 || failedCount > 0)
+            {
+                await CreateAdminNotificationAsync(
+                    AdminNotificationType.SystemOperation,
+                    "Batch Processing Completed",
+                    $"Processed: {processedCount}, Failed: {failedCount}",
+                    failedCount > processedCount / 2 ? NotificationPriority.High : NotificationPriority.Normal,
+                    null,
+                    "BatchProcessing",
+                    new { ProcessedCount = processedCount, FailedCount = failedCount }
+                );
+            }
+
+            // Update worker state
+            try
+            {
+                await _workerStateService.UpdateLastProcessingRunAsync(DateTime.UtcNow, processedCount, failedCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not update worker state");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during batch processing");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Get processing statistics using repository methods
+    /// </summary>
+    public async Task<ProcessingStats> GetProcessingStatsAsync()
+    {
+        try
+        {
+            var stats = new ProcessingStats
+            {
+                TotalMessages = await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.Pending) +
+                               await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.Processed) +
+                               await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.Failed) +
+                               await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.Processing) +
+                               await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.Ignored),
+                PendingMessages = await _rawMessageRepo.GetPendingCountAsync(),
+                ProcessedMessages = await _rawMessageRepo.GetProcessedCountAsync(),
+                FailedMessages = await _rawMessageRepo.GetFailedCountAsync(),
+                ChangesDetected = await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.PendingChange),
+                LastProcessingRun = await _workerStateService.GetLastProcessingRunAsync()
+            };
+
+            return stats;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting processing stats");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Create admin notification with proper entity structure
+    /// </summary>
+    private async Task CreateAdminNotificationAsync(
+        AdminNotificationType type,
+        string title,
+        string message,
+        NotificationPriority priority,
+        int? relatedEntityId = null,
+        string? relatedEntityType = null,
+        object? metadata = null)
+    {
+        try
+        {
+            var notification = new AdminNotification
+            {
+                Type = type,
+                Title = title.Length > 200 ? title.Substring(0, 197) + "..." : title,
+                Message = message.Length > 2000 ? message.Substring(0, 1997) + "..." : message,
+                Priority = priority,
+                IsRead = false,
+                RelatedEntityId = relatedEntityId,
+                RelatedEntityType = relatedEntityType?.Length > 50 ? relatedEntityType.Substring(0, 50) : relatedEntityType,
+                Metadata = metadata != null ? JsonSerializer.Serialize(metadata).Substring(0, Math.Min(1000, JsonSerializer.Serialize(metadata).Length)) : null,
+                ExpiresAt = null, // Set expiration if needed based on notification type
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _notificationRepository.AddAsync(notification);
+            await _notificationRepository.SaveChangesAsync();
+
+            _logger.LogInformation($"Admin Notification Created: [{priority}] {type} - {title}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating admin notification");
+            // Don't throw - notification failure shouldn't break processing
+        }
+    }
+
+    // ==================== EXISTING METHODS (Enhanced with Repository Methods) ====================
 
     /// <summary>
     /// Processes a raw message with change detection capabilities
     /// </summary>
     public async Task<ProcessingResult> ProcessRawMessageAsync(int rawMessageId)
     {
-        var rawMessage = await _rawMessageRepo.GetByIdAsync(rawMessageId);
+        var rawMessage = await _rawMessageRepo.GetByIdWithChannelAsync(rawMessageId);
         if (rawMessage == null)
         {
             _logger.LogWarning("RawMessage with ID {RawMessageId} not found", rawMessageId);
@@ -68,8 +478,8 @@ public class ProcessingService : IProcessingService
             // ==================== STEP 1: GENERATE CONTENT HASH ====================
             var contentHash = _changeDetectionService.GenerateContentHash(rawMessage.MessageText);
             rawMessage.ContentHash = contentHash;
-            
-            _logger.LogDebug("Generated content hash for message {MessageId}: {Hash}", 
+
+            _logger.LogDebug("Generated content hash for message {MessageId}: {Hash}",
                 rawMessageId, contentHash);
 
             // ==================== STEP 2: CHECK FOR CHANGES ====================
@@ -78,7 +488,7 @@ public class ProcessingService : IProcessingService
                 rawMessage.ExternalMessageId.ToString(),
                 contentHash);
 
-            _logger.LogInformation("Change detection result for message {MessageId}: HasChanged={HasChanged}", 
+            _logger.LogInformation("Change detection result for message {MessageId}: HasChanged={HasChanged}",
                 rawMessageId, hasChanged);
 
             if (hasChanged)
@@ -111,7 +521,7 @@ public class ProcessingService : IProcessingService
                 // Detect specific changes
                 var changeDetails = _changeDetectionService.DetectChanges(oldParsedData, newParsedData);
 
-                _logger.LogInformation("Change analysis complete for message {MessageId}: {ChangeType}, {ChangeCount} changes detected", 
+                _logger.LogInformation("Change analysis complete for message {MessageId}: {ChangeType}, {ChangeCount} changes detected",
                     rawMessageId, changeDetails.ChangeType, changeDetails.Changes.Count);
 
                 // Store change details
@@ -125,11 +535,11 @@ public class ProcessingService : IProcessingService
 
                 // IMPROVED: Always process changes, but mark them appropriately
                 rawMessage.Status = RawMessageStatus.Pending; // Process the change
-                
+
                 // Save the updated raw message BEFORE processing content
                 _rawMessageRepo.Update(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
-                
+
                 _logger.LogInformation("Change marked and saved for message {MessageId}, proceeding with processing", rawMessageId);
             }
             else
@@ -137,10 +547,10 @@ public class ProcessingService : IProcessingService
                 // No change detected, but still process if it's a new message
                 rawMessage.Status = RawMessageStatus.Pending;
                 rawMessage.IsChange = false;
-                
+
                 _rawMessageRepo.Update(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
-                
+
                 _logger.LogDebug("No content change detected for message {MessageId}, processing normally", rawMessageId);
             }
 
@@ -151,10 +561,8 @@ public class ProcessingService : IProcessingService
         {
             _logger.LogError(ex, "Error processing raw message {RawMessageId}", rawMessageId);
 
-            rawMessage.Status = RawMessageStatus.Failed;
-            rawMessage.ErrorMessage = ex.Message; // Store error for debugging
-            _rawMessageRepo.Update(rawMessage);
-            await _rawMessageRepo.SaveChangesAsync();
+            // Mark as failed using repository method
+            await _rawMessageRepo.MarkAsFailedAsync(rawMessageId, ex.Message);
 
             return new ProcessingResult
             {
@@ -171,9 +579,8 @@ public class ProcessingService : IProcessingService
     {
         try
         {
-            // Get channel info
-            var channel = await _channelRepository.GetByIdAsync(rawMessage.ChannelId);
-            if (channel == null)
+            // Get channel info (already included in GetByIdWithChannelAsync)
+            if (rawMessage.Channel == null)
             {
                 _logger.LogError("Channel {ChannelId} not found for message {MessageId}",
                     rawMessage.ChannelId, rawMessage.Id);
@@ -185,9 +592,7 @@ public class ProcessingService : IProcessingService
             if (parsedData == null)
             {
                 _logger.LogDebug("Message {MessageId} could not be parsed as account data", rawMessage.Id);
-                rawMessage.Status = RawMessageStatus.Ignored;
-                _rawMessageRepo.Update(rawMessage);
-                await _rawMessageRepo.SaveChangesAsync();
+                await _rawMessageRepo.MarkAsIgnoredAsync(rawMessage.Id);
                 return new ProcessingResult { Success = true, ErrorMessage = "Message ignored - not account data" };
             }
 
@@ -210,20 +615,20 @@ public class ProcessingService : IProcessingService
             // Process the account data
             var result = await ProcessAndSaveAccountAsync(viewModel);
 
-            // Update message status based on result
-            rawMessage.Status = result.Success ? RawMessageStatus.Processed : RawMessageStatus.Failed;
-            if (!result.Success)
+            // Update message status based on result using repository methods
+            if (result.Success)
             {
-                rawMessage.ErrorMessage = result.ErrorMessage;
+                await _rawMessageRepo.MarkAsProcessedAsync(rawMessage.Id, result.AccountId);
             }
-            
-            _rawMessageRepo.Update(rawMessage);
-            await _rawMessageRepo.SaveChangesAsync();
+            else
+            {
+                await _rawMessageRepo.MarkAsFailedAsync(rawMessage.Id, result.ErrorMessage ?? "Unknown error");
+            }
 
             // If this was a change, log additional info
             if (rawMessage.IsChange)
             {
-                _logger.LogInformation("Successfully processed CHANGE for message {MessageId}: {AccountTitle} (Account ID: {AccountId})", 
+                _logger.LogInformation("Successfully processed CHANGE for message {MessageId}: {AccountTitle} (Account ID: {AccountId})",
                     rawMessage.Id, result.AccountTitle, result.AccountId);
             }
 
@@ -327,11 +732,18 @@ public class ProcessingService : IProcessingService
             newAccount.AccountGames.Add(new AccountGame { Game = game });
 
         await _accountRepository.AddAsync(newAccount);
+        await _accountRepository.SaveChangesAsync();
 
-        rawMessage.Status = RawMessageStatus.Processed;
-        _rawMessageRepo.Update(rawMessage);
-
-        await _rawMessageRepo.SaveChangesAsync();
+        // Create success notification
+        await CreateAdminNotificationAsync(
+            AdminNotificationType.AccountCreated,
+            "New Account Created",
+            $"New account '{newAccount.Title}' created successfully",
+            NotificationPriority.Low,
+            newAccount.Id,
+            "Account",
+            new { MessageId = rawMessage.Id, ChannelId = rawMessage.ChannelId }
+        );
 
         _logger.LogInformation("Successfully created new account '{AccountTitle}' (ID: {AccountId})",
             newAccount.Title, newAccount.Id);
@@ -349,7 +761,7 @@ public class ProcessingService : IProcessingService
     private async Task<ProcessingResult> UpdateExistingAccount(Account existingAccount,
         ProcessMessageViewModel viewModel, RawMessage rawMessage)
     {
-        _logger.LogInformation("Updating existing Account ID: {AccountId} (Change: {IsChange})", 
+        _logger.LogInformation("Updating existing Account ID: {AccountId} (Change: {IsChange})",
             existingAccount.Id, rawMessage.IsChange);
 
         existingAccount.Title = viewModel.Title;
@@ -360,7 +772,7 @@ public class ProcessingService : IProcessingService
         existingAccount.AdditionalInfo = viewModel.AdditionalInfo;
         existingAccount.UpdatedAt = DateTime.UtcNow;
         existingAccount.LastScrapedAt = DateTime.UtcNow;
-        
+
         // Update description with new message content
         existingAccount.Description = rawMessage.MessageText;
 
@@ -371,11 +783,7 @@ public class ProcessingService : IProcessingService
             existingAccount.AccountGames.Add(new AccountGame { Account = existingAccount, Game = game });
 
         _accountRepository.Update(existingAccount);
-
-        rawMessage.Status = RawMessageStatus.Processed;
-        _rawMessageRepo.Update(rawMessage);
-
-        await _rawMessageRepo.SaveChangesAsync();
+        await _accountRepository.SaveChangesAsync();
 
         _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId}), Change: {IsChange}",
             existingAccount.Title, existingAccount.Id, rawMessage.IsChange);
@@ -424,23 +832,38 @@ public class ProcessingService : IProcessingService
             var channel = await _channelRepository.GetByIdAsync(changedMessage.ChannelId);
             var channelName = channel?.Name ?? "Unknown Channel";
 
-            var notification = new AdminNotification
+            var notificationType = changes.ChangeType switch
             {
-                Type = AdminNotificationType.AccountChanged,
-                Title = $"Account Updated in {channelName}",
-                Message = FormatChangeMessage(changes, changedMessage.ExternalMessageId),
-                RelatedEntityId = changedMessage.Id,
-                RelatedEntityType = "RawMessage",
-                Priority = DetermineNotificationPriority(changes),
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
+                ChangeType.Deleted => AdminNotificationType.AccountDeleted,
+                ChangeType.PriceChanged => AdminNotificationType.PriceChanged,
+                ChangeType.GamesChanged => AdminNotificationType.AccountUpdated,
+                _ => AdminNotificationType.AccountUpdated
             };
 
-            await _notificationRepository.AddAsync(notification);
-            await _notificationRepository.SaveChangesAsync();
+            var priority = changes.ChangeType switch
+            {
+                ChangeType.Deleted => NotificationPriority.High,
+                ChangeType.PriceChanged => NotificationPriority.Normal,
+                _ => NotificationPriority.Low
+            };
 
-            _logger.LogInformation("Created admin notification for change in message {MessageId}: {Title}", 
-                changedMessage.Id, notification.Title);
+            await CreateAdminNotificationAsync(
+                notificationType,
+                $"Account Updated in {channelName}",
+                FormatChangeMessage(changes, changedMessage.ExternalMessageId),
+                priority,
+                changedMessage.Id,
+                "RawMessage",
+                new
+                {
+                    ChangeType = changes.ChangeType.ToString(),
+                    ChangeCount = changes.Changes.Count,
+                    ExternalMessageId = changedMessage.ExternalMessageId,
+                    ChannelId = changedMessage.ChannelId
+                }
+            );
+
+            _logger.LogInformation("Created admin notification for change in message {MessageId}", changedMessage.Id);
         }
         catch (Exception ex)
         {
@@ -469,18 +892,6 @@ public class ProcessingService : IProcessingService
         return sb.ToString();
     }
 
-    private NotificationPriority DetermineNotificationPriority(ChangeDetails changes)
-    {
-        // High priority for sold status or significant price changes
-        if (changes.ChangeType == ChangeType.Deleted)
-            return NotificationPriority.High;
-
-        if (changes.ChangeType == ChangeType.PriceChanged)
-            return NotificationPriority.Normal;
-
-        return NotificationPriority.Low;
-    }
-
     private bool ShouldAutoProcessChanges()
     {
         var section = _configuration.GetSection("ChangeDetectionSettings:AutoProcessChanges");
@@ -493,3 +904,5 @@ public class ProcessingService : IProcessingService
         return !section.Exists() || bool.Parse(section.Value ?? "true"); // Default to true
     }
 }
+
+

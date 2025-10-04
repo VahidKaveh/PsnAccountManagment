@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -6,6 +6,7 @@ using PsnAccountManager.Shared.DTOs;
 using PsnAccountManager.Shared.Enums;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PsnAccountManager.Application.Services
 {
@@ -13,13 +14,19 @@ namespace PsnAccountManager.Application.Services
     {
         private readonly IRawMessageRepository _rawMessageRepo;
         private readonly ILogger<ChangeDetectionService> _logger;
+        private readonly IProcessingService _processingService;
+        private readonly IAccountRepository _accountRepository;
 
         public ChangeDetectionService(
             IRawMessageRepository rawMessageRepo,
-            ILogger<ChangeDetectionService> logger)
+            ILogger<ChangeDetectionService> logger,
+            IProcessingService processingService,
+            IAccountRepository accountRepository)
         {
             _rawMessageRepo = rawMessageRepo;
             _logger = logger;
+            _processingService = processingService;
+            _accountRepository = accountRepository;
         }
 
         public string GenerateContentHash(string messageText)
@@ -39,23 +46,23 @@ namespace PsnAccountManager.Application.Services
         {
             try
             {
-                _logger.LogDebug("Checking content changes for Channel:{ChannelId}, ExternalId:{ExternalId}", 
+                _logger.LogDebug("Checking content changes for Channel:{ChannelId}, ExternalId:{ExternalId}",
                     channelId, externalId);
-                
+
                 var lastMessage = await _rawMessageRepo.GetByExternalIdAsync(channelId, externalId);
 
                 if (lastMessage == null)
                 {
-                    _logger.LogInformation("No previous message found for {ChannelId}:{ExternalId}, treating as new", 
+                    _logger.LogInformation("No previous message found for {ChannelId}:{ExternalId}, treating as new",
                         channelId, externalId);
                     return true; // First message, treat as new
                 }
 
                 var hasChanged = lastMessage.ContentHash != newHash;
-                
-                _logger.LogDebug("Content change check result: {HasChanged}. Old hash: {OldHash}, New hash: {NewHash}", 
+
+                _logger.LogDebug("Content change check result: {HasChanged}. Old hash: {OldHash}, New hash: {NewHash}",
                     hasChanged, lastMessage.ContentHash, newHash);
-                
+
                 return hasChanged;
             }
             catch (Exception ex)
@@ -63,6 +70,124 @@ namespace PsnAccountManager.Application.Services
                 _logger.LogError(ex, "Error checking content changes for {ChannelId}:{ExternalId}",
                     channelId, externalId);
                 return true; // Assume changed to be safe
+            }
+        }
+
+        public async Task<bool> HasMessageChangedAsync(long messageId, string currentText, int channelId)
+        {
+            try
+            {
+                _logger.LogDebug($"Checking for changes in message {messageId}");
+
+                var currentHash = GenerateContentHash(currentText);
+                var existingMessage = await _rawMessageRepo.GetByExternalMessageIdAsync(messageId, channelId);
+
+                if (existingMessage == null)
+                {
+                    _logger.LogInformation($"New message detected: {messageId}");
+                    return false; // نو است، تغییر محسوب نمی‌شود
+                }
+
+                // بررسی اینکه آیا پیغام از کانال حذف شده (پیغام خالی یا null)
+                bool isMessageDeleted = string.IsNullOrWhiteSpace(currentText) || currentText.Trim().Length == 0;
+
+                if (isMessageDeleted)
+                {
+                    _logger.LogInformation($"Message {messageId} appears to be deleted from channel");
+
+                    // اگر پیغام در Inbox باشد و پردازش نشده، آن را به حالت Deleted تغییر دهیم
+                    if (existingMessage.ProcessedAt == null)
+                    {
+                        _logger.LogInformation($"Marking unprocessed message {messageId} as deleted instead of creating duplicate change");
+
+                        existingMessage.Status = "Deleted";
+                        existingMessage.UpdatedAt = DateTime.UtcNow;
+                        existingMessage.UpdatedBy = "System";
+                        existingMessage.ErrorMessage = "Message deleted from channel before processing";
+
+                        _rawMessageRepo.Update(existingMessage);
+                        await _rawMessageRepo.SaveChangesAsync();
+
+                        return false; // هیچ change جدیدی ایجاد نکن
+                    }
+
+                    // اگر قبلاً پردازش شده، change ایجاد کن
+                    return true;
+                }
+
+                bool hasChanged = existingMessage.ContentHash != currentHash;
+
+                if (hasChanged)
+                {
+                    _logger.LogInformation($"Content change detected for message {messageId}");
+                    _logger.LogDebug($"Old hash: {existingMessage.ContentHash}, New hash: {currentHash}");
+                }
+
+                return hasChanged;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error checking message changes for message {messageId}");
+                return false;
+            }
+        }
+
+        // NEW METHOD: برای ایجاد رکورد تغییر
+        public async Task CreateChangeRecordAsync(long messageId, string newContent, string oldContent, int channelId)
+        {
+            try
+            {
+                _logger.LogInformation($"Creating change record for message {messageId}");
+
+                var existingMessage = await _rawMessageRepo.GetByExternalMessageIdAsync(messageId, channelId);
+                if (existingMessage == null)
+                {
+                    _logger.LogWarning($"Cannot create change record - original message {messageId} not found");
+                    return;
+                }
+
+                // تشخیص نوع تغییر
+                string changeType = DetectChangeType(oldContent, newContent);
+                string changeDetails = GenerateChangeDetails(oldContent, newContent, changeType);
+
+                var changeRecord = new RawMessage
+                {
+                    ChannelId = channelId,
+                    ExternalMessageId = messageId,
+                    MessageText = newContent,
+                    ContentHash = GenerateContentHash(newContent),
+                    Status = RawMessageStatus.Pending,
+                    ReceivedAt = DateTime.UtcNow,
+                    IsChange = true,
+                    PreviousMessageId = existingMessage.Id,
+                    ChangeDetails = changeDetails,
+                    AccountId = existingMessage.AccountId,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = "ChangeDetectionService",
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = "System"
+                };
+
+                await _rawMessageRepo.AddAsync(changeRecord);
+                await _rawMessageRepo.SaveChangesAsync();
+
+                _logger.LogInformation($"Change record created successfully for message {messageId}, Change type: {changeType}");
+
+                // اگر auto processing فعال باشد، بلافاصله پردازش کن
+                try
+                {
+                    await _processingService.ProcessMessageAsync(changeRecord.Id);
+                }
+                catch (Exception processingEx)
+                {
+                    _logger.LogWarning(processingEx, $"Auto processing failed for change record {changeRecord.Id}");
+                    // Don't throw - change record is created, processing can be retried later
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error creating change record for message {messageId}");
+                throw;
             }
         }
 
@@ -114,7 +239,7 @@ namespace PsnAccountManager.Application.Services
             if (changes.HasChanges)
             {
                 changes.ChangeType = DetermineChangeType(changes);
-                _logger.LogInformation("Detected changes in account {ExternalId}: {ChangeType}, Total changes: {Count}", 
+                _logger.LogInformation("Detected changes in account {ExternalId}: {ChangeType}, Total changes: {Count}",
                     newData!.ExternalId, changes.ChangeType, changes.Changes.Count);
             }
             else
@@ -130,15 +255,105 @@ namespace PsnAccountManager.Application.Services
             if (string.IsNullOrEmpty(messageText))
                 return string.Empty;
 
-            // FIXED: More comprehensive normalization for better change detection
+            // IMPROVED: More comprehensive normalization for better change detection
             return messageText
                 .ToLowerInvariant() // Convert to lowercase for consistent comparison
                 .Replace("\r\n", "\n")
                 .Replace("\r", "\n")
                 .Replace("\t", " ")
-                .Replace("  ", " ") // Replace double spaces with single
+                .Normalize() // Unicode normalization first
                 .Trim()
-                .Normalize(); // Unicode normalization
+                .Replace("  ", " "); // Replace double spaces with single AFTER trim
+        }
+
+        // NEW HELPER METHODS for string-based change detection
+        private string DetectChangeType(string oldContent, string newContent)
+        {
+            if (string.IsNullOrWhiteSpace(newContent))
+                return "DELETED";
+
+            if (string.IsNullOrWhiteSpace(oldContent))
+                return "CREATED";
+
+            // بررسی تغییرات قیمت
+            var oldPrice = ExtractPrice(oldContent);
+            var newPrice = ExtractPrice(newContent);
+
+            if (oldPrice != newPrice)
+                return "PRICE_CHANGED";
+
+            // بررسی تغییرات وضعیت
+            var oldStatus = ExtractAccountStatus(oldContent);
+            var newStatus = ExtractAccountStatus(newContent);
+
+            if (oldStatus != newStatus)
+                return "STATUS_CHANGED";
+
+            return "CONTENT_MODIFIED";
+        }
+
+        private string GenerateChangeDetails(string oldContent, string newContent, string changeType)
+        {
+            var details = new List<string>();
+
+            switch (changeType)
+            {
+                case "DELETED":
+                    details.Add("Account deleted from channel");
+                    break;
+
+                case "PRICE_CHANGED":
+                    var oldPrice = ExtractPrice(oldContent);
+                    var newPrice = ExtractPrice(newContent);
+                    details.Add($"Price changed from {oldPrice} to {newPrice}");
+                    break;
+
+                case "STATUS_CHANGED":
+                    var oldStatus = ExtractAccountStatus(oldContent);
+                    var newStatus = ExtractAccountStatus(newContent);
+                    details.Add($"Status changed from '{oldStatus}' to '{newStatus}'");
+                    break;
+
+                default:
+                    details.Add("Content modified");
+                    break;
+            }
+
+            return string.Join("; ", details);
+        }
+
+        private string ExtractPrice(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+                return "Unknown";
+
+            var priceMatch = Regex.Match(content, @"(\d+(?:\.\d+)?)\s*(?:تومان|تومن|T|Toman)", RegexOptions.IgnoreCase);
+            return priceMatch.Success ? priceMatch.Groups[1].Value + " تومان" : "نامشخص";
+        }
+
+        private string ExtractAccountStatus(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+                return "Unknown";
+
+            var statusPatterns = new[]
+            {
+                @"(?:وضعیت|Status):\s*([^\n\r]+)",
+                @"(?:sold|فروخته شده|فروخته)",
+                @"(?:available|در دسترس|موجود)",
+                @"(?:reserved|رزرو شده|رزرو)"
+            };
+
+            foreach (var pattern in statusPatterns)
+            {
+                var match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    return match.Groups.Count > 1 ? match.Groups[1].Value.Trim() : match.Value;
+                }
+            }
+
+            return "نامشخص";
         }
 
         private void CompareAccountFields(ParsedAccountDto oldData, ParsedAccountDto newData, ChangeDetails changes)
@@ -169,10 +384,10 @@ namespace PsnAccountManager.Application.Services
                 changes.AddChange("SoldStatus",
                     oldData.IsSold ? "Sold" : "Available",
                     newData.IsSold ? "Sold" : "Available");
-                    
-                _logger.LogInformation("IMPORTANT: Sold status changed for {ExternalId}: {OldStatus} -> {NewStatus}", 
-                    newData.ExternalId, 
-                    oldData.IsSold ? "Sold" : "Available", 
+
+                _logger.LogInformation("IMPORTANT: Sold status changed for {ExternalId}: {OldStatus} -> {NewStatus}",
+                    newData.ExternalId,
+                    oldData.IsSold ? "Sold" : "Available",
                     newData.IsSold ? "Sold" : "Available");
             }
 

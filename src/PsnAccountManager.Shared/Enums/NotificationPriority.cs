@@ -43,7 +43,15 @@
         /// <summary>
         /// Data quality issues
         /// </summary>
-        DataQuality = 7
+        DataQuality = 7,
+        AccountDeleted = 8,
+        PriceChanged = 9,
+        AccountUpdated = 10,
+        AccountCreated = 11,
+        NewMessage = 12,
+        SystemOperation = 13,
+        StatusChanged = 14,
+        MessageDeleted = 15
     }
 
     /// <summary>

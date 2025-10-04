@@ -734,8 +734,8 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("ErrorMessage")
-                        .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)");
 
                     b.Property<long>("ExternalMessageId")
                         .HasColumnType("bigint");

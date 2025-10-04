@@ -21,6 +21,7 @@ public interface IRawMessageRepository : IGenericRepository<RawMessage, int>
     /// </summary>
     Task<RawMessage?> GetByExternalIdAsync(int channelId, string externalMessageId);
 
+    Task<List<RawMessage>> GetInboxMessagesAsync(int skip , int take);
 
     /// <summary>
     /// Gets all pending messages that represent changes
