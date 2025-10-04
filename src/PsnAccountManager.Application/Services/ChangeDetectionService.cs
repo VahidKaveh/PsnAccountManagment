@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -14,18 +14,16 @@ namespace PsnAccountManager.Application.Services
     {
         private readonly IRawMessageRepository _rawMessageRepo;
         private readonly ILogger<ChangeDetectionService> _logger;
-        private readonly IProcessingService _processingService;
+        // حذف dependency به IProcessingService برای جلوگیری از circular reference
         private readonly IAccountRepository _accountRepository;
 
         public ChangeDetectionService(
             IRawMessageRepository rawMessageRepo,
             ILogger<ChangeDetectionService> logger,
-            IProcessingService processingService,
             IAccountRepository accountRepository)
         {
             _rawMessageRepo = rawMessageRepo;
             _logger = logger;
-            _processingService = processingService;
             _accountRepository = accountRepository;
         }
 
@@ -46,23 +44,24 @@ namespace PsnAccountManager.Application.Services
         {
             try
             {
-                _logger.LogDebug("Checking content changes for Channel:{ChannelId}, ExternalId:{ExternalId}",
+                _logger.LogDebug("Checking content changes for Channel:{ChannelId}, ExternalId:{ExternalId}", 
                     channelId, externalId);
-
+                
+                // استفاده از متد موجود در repository
                 var lastMessage = await _rawMessageRepo.GetByExternalIdAsync(channelId, externalId);
 
                 if (lastMessage == null)
                 {
-                    _logger.LogInformation("No previous message found for {ChannelId}:{ExternalId}, treating as new",
+                    _logger.LogInformation("No previous message found for {ChannelId}:{ExternalId}, treating as new", 
                         channelId, externalId);
                     return true; // First message, treat as new
                 }
 
                 var hasChanged = lastMessage.ContentHash != newHash;
-
-                _logger.LogDebug("Content change check result: {HasChanged}. Old hash: {OldHash}, New hash: {NewHash}",
+                
+                _logger.LogDebug("Content change check result: {HasChanged}. Old hash: {OldHash}, New hash: {NewHash}", 
                     hasChanged, lastMessage.ContentHash, newHash);
-
+                
                 return hasChanged;
             }
             catch (Exception ex)
@@ -73,6 +72,7 @@ namespace PsnAccountManager.Application.Services
             }
         }
 
+        // NEW METHOD: برای بررسی تغییر پیغام با message ID
         public async Task<bool> HasMessageChangedAsync(long messageId, string currentText, int channelId)
         {
             try
@@ -80,7 +80,9 @@ namespace PsnAccountManager.Application.Services
                 _logger.LogDebug($"Checking for changes in message {messageId}");
 
                 var currentHash = GenerateContentHash(currentText);
-                var existingMessage = await _rawMessageRepo.GetByExternalMessageIdAsync(messageId, channelId);
+                
+                // استفاده از متد موجود - تبدیل messageId به string
+                var existingMessage = await _rawMessageRepo.GetByExternalIdAsync(channelId, messageId.ToString());
 
                 if (existingMessage == null)
                 {
@@ -94,23 +96,23 @@ namespace PsnAccountManager.Application.Services
                 if (isMessageDeleted)
                 {
                     _logger.LogInformation($"Message {messageId} appears to be deleted from channel");
-
+                    
                     // اگر پیغام در Inbox باشد و پردازش نشده، آن را به حالت Deleted تغییر دهیم
                     if (existingMessage.ProcessedAt == null)
                     {
                         _logger.LogInformation($"Marking unprocessed message {messageId} as deleted instead of creating duplicate change");
-
-                        existingMessage.Status = "Deleted";
+                        
+                        existingMessage.Status = RawMessageStatus.Deleted;
                         existingMessage.UpdatedAt = DateTime.UtcNow;
                         existingMessage.UpdatedBy = "System";
                         existingMessage.ErrorMessage = "Message deleted from channel before processing";
-
-                        _rawMessageRepo.Update(existingMessage);
+                        
+                        await _rawMessageRepo.UpdateAsync(existingMessage);
                         await _rawMessageRepo.SaveChangesAsync();
-
+                        
                         return false; // هیچ change جدیدی ایجاد نکن
                     }
-
+                    
                     // اگر قبلاً پردازش شده، change ایجاد کن
                     return true;
                 }
@@ -132,14 +134,14 @@ namespace PsnAccountManager.Application.Services
             }
         }
 
-        // NEW METHOD: برای ایجاد رکورد تغییر
+        // NEW METHOD: برای ایجاد رکورد تغییر - بدون dependency به ProcessingService
         public async Task CreateChangeRecordAsync(long messageId, string newContent, string oldContent, int channelId)
         {
             try
             {
                 _logger.LogInformation($"Creating change record for message {messageId}");
 
-                var existingMessage = await _rawMessageRepo.GetByExternalMessageIdAsync(messageId, channelId);
+                var existingMessage = await _rawMessageRepo.GetByExternalIdAsync(channelId, messageId.ToString());
                 if (existingMessage == null)
                 {
                     _logger.LogWarning($"Cannot create change record - original message {messageId} not found");
@@ -173,16 +175,9 @@ namespace PsnAccountManager.Application.Services
 
                 _logger.LogInformation($"Change record created successfully for message {messageId}, Change type: {changeType}");
 
-                // اگر auto processing فعال باشد، بلافاصله پردازش کن
-                try
-                {
-                    await _processingService.ProcessMessageAsync(changeRecord.Id);
-                }
-                catch (Exception processingEx)
-                {
-                    _logger.LogWarning(processingEx, $"Auto processing failed for change record {changeRecord.Id}");
-                    // Don't throw - change record is created, processing can be retried later
-                }
+                // بجای ProcessingService، فقط log می‌کنیم که change ایجاد شده
+                _logger.LogInformation($"Change record {changeRecord.Id} created and is ready for processing");
+
             }
             catch (Exception ex)
             {
@@ -239,7 +234,7 @@ namespace PsnAccountManager.Application.Services
             if (changes.HasChanges)
             {
                 changes.ChangeType = DetermineChangeType(changes);
-                _logger.LogInformation("Detected changes in account {ExternalId}: {ChangeType}, Total changes: {Count}",
+                _logger.LogInformation("Detected changes in account {ExternalId}: {ChangeType}, Total changes: {Count}", 
                     newData!.ExternalId, changes.ChangeType, changes.Changes.Count);
             }
             else
@@ -384,10 +379,10 @@ namespace PsnAccountManager.Application.Services
                 changes.AddChange("SoldStatus",
                     oldData.IsSold ? "Sold" : "Available",
                     newData.IsSold ? "Sold" : "Available");
-
-                _logger.LogInformation("IMPORTANT: Sold status changed for {ExternalId}: {OldStatus} -> {NewStatus}",
-                    newData.ExternalId,
-                    oldData.IsSold ? "Sold" : "Available",
+                    
+                _logger.LogInformation("IMPORTANT: Sold status changed for {ExternalId}: {OldStatus} -> {NewStatus}", 
+                    newData.ExternalId, 
+                    oldData.IsSold ? "Sold" : "Available", 
                     newData.IsSold ? "Sold" : "Available");
             }
 
