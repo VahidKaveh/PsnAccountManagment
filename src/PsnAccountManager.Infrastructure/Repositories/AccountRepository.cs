@@ -395,6 +395,7 @@ public class AccountRepository : GenericRepository<Account, int>, IAccountReposi
     
     /// <summary>
     /// Gets all accounts for a specific channel (for simple matching)
+    /// FIXED: Remove ?? operator since both dates are non-nullable
     /// </summary>
     public async Task<IEnumerable<Account>> GetByChannelIdAsync(int channelId)
     {
@@ -404,7 +405,7 @@ public class AccountRepository : GenericRepository<Account, int>, IAccountReposi
                 .AsNoTracking()
                 .Include(a => a.Channel)
                 .Where(a => a.ChannelId == channelId)
-                .OrderByDescending(a => a.LastScrapedAt ?? a.CreatedAt)
+                .OrderByDescending(a => a.LastScrapedAt) // FIXED: چون هر دو non-nullable هستند، فقط LastScrapedAt استفاده می‌کنیم
                 .ToListAsync();
         }
         catch (Exception ex)
