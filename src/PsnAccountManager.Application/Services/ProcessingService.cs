@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
@@ -68,12 +68,18 @@ public class ProcessingService : IProcessingService
             // ==================== STEP 1: GENERATE CONTENT HASH ====================
             var contentHash = _changeDetectionService.GenerateContentHash(rawMessage.MessageText);
             rawMessage.ContentHash = contentHash;
+            
+            _logger.LogDebug("Generated content hash for message {MessageId}: {Hash}", 
+                rawMessageId, contentHash);
 
             // ==================== STEP 2: CHECK FOR CHANGES ====================
             var hasChanged = await _changeDetectionService.HasContentChangedAsync(
                 rawMessage.ChannelId,
                 rawMessage.ExternalMessageId.ToString(),
                 contentHash);
+
+            _logger.LogInformation("Change detection result for message {MessageId}: HasChanged={HasChanged}", 
+                rawMessageId, hasChanged);
 
             if (hasChanged)
             {
@@ -89,6 +95,7 @@ public class ProcessingService : IProcessingService
                 if (previousMessage != null)
                 {
                     rawMessage.PreviousMessageId = previousMessage.Id;
+                    _logger.LogDebug("Found previous message {PreviousId} for comparison", previousMessage.Id);
                 }
 
                 // Parse both old and new data for detailed change detection
@@ -98,10 +105,14 @@ public class ProcessingService : IProcessingService
                 if (previousMessage != null)
                 {
                     oldParsedData = await _messageParser.ParseAccountMessageAsync(previousMessage.MessageText);
+                    _logger.LogDebug("Parsed old data for comparison from message {PreviousId}", previousMessage.Id);
                 }
 
                 // Detect specific changes
                 var changeDetails = _changeDetectionService.DetectChanges(oldParsedData, newParsedData);
+
+                _logger.LogInformation("Change analysis complete for message {MessageId}: {ChangeType}, {ChangeCount} changes detected", 
+                    rawMessageId, changeDetails.ChangeType, changeDetails.Changes.Count);
 
                 // Store change details
                 rawMessage.ChangeDetails = changeDetails.ToJson();
@@ -112,49 +123,36 @@ public class ProcessingService : IProcessingService
                     await CreateChangeNotificationAsync(rawMessage, changeDetails, previousMessage);
                 }
 
-                // Determine processing strategy
-                if (ShouldAutoProcessChanges())
-                {
-                    rawMessage.Status = RawMessageStatus.Pending; // Process normally
-                    _logger.LogDebug("Auto-processing change for message {MessageId}", rawMessageId);
-                }
-                else
-                {
-                    rawMessage.Status = RawMessageStatus.PendingChange; // Queue for manual review
-                    _logger.LogInformation("Change queued for manual review: message {MessageId}", rawMessageId);
-                }
+                // IMPROVED: Always process changes, but mark them appropriately
+                rawMessage.Status = RawMessageStatus.Pending; // Process the change
+                
+                // Save the updated raw message BEFORE processing content
+                _rawMessageRepo.Update(rawMessage);
+                await _rawMessageRepo.SaveChangesAsync();
+                
+                _logger.LogInformation("Change marked and saved for message {MessageId}, proceeding with processing", rawMessageId);
             }
             else
             {
-                // No change detected, process normally
+                // No change detected, but still process if it's a new message
                 rawMessage.Status = RawMessageStatus.Pending;
-                _logger.LogDebug("No content change detected for message {MessageId}", rawMessageId);
+                rawMessage.IsChange = false;
+                
+                _rawMessageRepo.Update(rawMessage);
+                await _rawMessageRepo.SaveChangesAsync();
+                
+                _logger.LogDebug("No content change detected for message {MessageId}, processing normally", rawMessageId);
             }
 
-            // Save the updated raw message
-            _rawMessageRepo.Update(rawMessage);
-            await _rawMessageRepo.SaveChangesAsync();
-
-            // ==================== STEP 3: CONTINUE PROCESSING IF APPROPRIATE ====================
-            if (rawMessage.Status == RawMessageStatus.Pending)
-            {
-                return await ProcessMessageContentAsync(rawMessage);
-            }
-
-            return new ProcessingResult
-            {
-                Success = true,
-                ErrorMessage = rawMessage.Status == RawMessageStatus.PendingChange
-                    ? "Change detected and queued for review"
-                    : "Message processed successfully",
-                IsChange = rawMessage.IsChange
-            };
+            // ==================== STEP 3: CONTINUE PROCESSING ====================
+            return await ProcessMessageContentAsync(rawMessage);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing raw message {RawMessageId}", rawMessageId);
 
             rawMessage.Status = RawMessageStatus.Failed;
+            rawMessage.ErrorMessage = ex.Message; // Store error for debugging
             _rawMessageRepo.Update(rawMessage);
             await _rawMessageRepo.SaveChangesAsync();
 
@@ -214,8 +212,20 @@ public class ProcessingService : IProcessingService
 
             // Update message status based on result
             rawMessage.Status = result.Success ? RawMessageStatus.Processed : RawMessageStatus.Failed;
+            if (!result.Success)
+            {
+                rawMessage.ErrorMessage = result.ErrorMessage;
+            }
+            
             _rawMessageRepo.Update(rawMessage);
             await _rawMessageRepo.SaveChangesAsync();
+
+            // If this was a change, log additional info
+            if (rawMessage.IsChange)
+            {
+                _logger.LogInformation("Successfully processed CHANGE for message {MessageId}: {AccountTitle} (Account ID: {AccountId})", 
+                    rawMessage.Id, result.AccountTitle, result.AccountId);
+            }
 
             return result;
         }
@@ -278,7 +288,7 @@ public class ProcessingService : IProcessingService
         try
         {
             if (existingAccount != null)
-                return await UpdateExistingAccount(existingAccount, viewModel);
+                return await UpdateExistingAccount(existingAccount, viewModel, rawMessage);
             else
                 return await CreateNewAccount(viewModel, rawMessage);
         }
@@ -331,14 +341,16 @@ public class ProcessingService : IProcessingService
             Success = true,
             IsNewAccount = true,
             AccountId = newAccount.Id,
-            AccountTitle = newAccount.Title
+            AccountTitle = newAccount.Title,
+            IsChange = rawMessage.IsChange
         };
     }
 
     private async Task<ProcessingResult> UpdateExistingAccount(Account existingAccount,
-        ProcessMessageViewModel viewModel)
+        ProcessMessageViewModel viewModel, RawMessage rawMessage)
     {
-        _logger.LogInformation("Updating existing Account ID: {AccountId}", existingAccount.Id);
+        _logger.LogInformation("Updating existing Account ID: {AccountId} (Change: {IsChange})", 
+            existingAccount.Id, rawMessage.IsChange);
 
         existingAccount.Title = viewModel.Title;
         existingAccount.PricePs4 = viewModel.PricePs4;
@@ -348,6 +360,9 @@ public class ProcessingService : IProcessingService
         existingAccount.AdditionalInfo = viewModel.AdditionalInfo;
         existingAccount.UpdatedAt = DateTime.UtcNow;
         existingAccount.LastScrapedAt = DateTime.UtcNow;
+        
+        // Update description with new message content
+        existingAccount.Description = rawMessage.MessageText;
 
         var gameEntities = await GetOrCreateGamesAsync(viewModel.GameTitles);
 
@@ -357,24 +372,21 @@ public class ProcessingService : IProcessingService
 
         _accountRepository.Update(existingAccount);
 
-        var rawMessage = await _rawMessageRepo.GetByIdAsync(viewModel.RawMessageId);
-        if (rawMessage != null)
-        {
-            rawMessage.Status = RawMessageStatus.Processed;
-            _rawMessageRepo.Update(rawMessage);
-        }
+        rawMessage.Status = RawMessageStatus.Processed;
+        _rawMessageRepo.Update(rawMessage);
 
         await _rawMessageRepo.SaveChangesAsync();
 
-        _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId})",
-            existingAccount.Title, existingAccount.Id);
+        _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId}), Change: {IsChange}",
+            existingAccount.Title, existingAccount.Id, rawMessage.IsChange);
 
         return new ProcessingResult
         {
             Success = true,
             IsNewAccount = false,
             AccountId = existingAccount.Id,
-            AccountTitle = existingAccount.Title
+            AccountTitle = existingAccount.Title,
+            IsChange = rawMessage.IsChange
         };
     }
 
@@ -427,7 +439,8 @@ public class ProcessingService : IProcessingService
             await _notificationRepository.AddAsync(notification);
             await _notificationRepository.SaveChangesAsync();
 
-            _logger.LogInformation("Created admin notification for change in message {MessageId}", changedMessage.Id);
+            _logger.LogInformation("Created admin notification for change in message {MessageId}: {Title}", 
+                changedMessage.Id, notification.Title);
         }
         catch (Exception ex)
         {
@@ -471,14 +484,12 @@ public class ProcessingService : IProcessingService
     private bool ShouldAutoProcessChanges()
     {
         var section = _configuration.GetSection("ChangeDetectionSettings:AutoProcessChanges");
-        return section.Exists() && bool.Parse(section.Value ?? "false");
+        return !section.Exists() || bool.Parse(section.Value ?? "true"); // Default to true
     }
 
     private bool ShouldNotifyAdminOfChanges()
     {
         var section = _configuration.GetSection("ChangeDetectionSettings:NotifyAdminOnChanges");
-        return !section.Exists() || bool.Parse(section.Value ?? "true");
+        return !section.Exists() || bool.Parse(section.Value ?? "true"); // Default to true
     }
-
-
 }
