@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -388,6 +388,29 @@ public class AccountRepository : GenericRepository<Account, int>, IAccountReposi
         {
             _logger.LogError(ex, "Error getting active account count");
             throw;
+        }
+    }
+
+    // ============== NEW METHOD - پیاده‌سازی متد مفقود ==============
+    
+    /// <summary>
+    /// Gets all accounts for a specific channel (for simple matching)
+    /// </summary>
+    public async Task<IEnumerable<Account>> GetByChannelIdAsync(int channelId)
+    {
+        try
+        {
+            return await DbSet
+                .AsNoTracking()
+                .Include(a => a.Channel)
+                .Where(a => a.ChannelId == channelId)
+                .OrderByDescending(a => a.LastScrapedAt ?? a.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting accounts for channel {ChannelId}", channelId);
+            return Enumerable.Empty<Account>();
         }
     }
 }
