@@ -905,16 +905,3 @@ public class ProcessingService : IProcessingService
         return !section.Exists() || bool.Parse(section.Value ?? "true"); // Default to true
     }
 }
-
-/// <summary>
-/// Statistics class for processing operations
-/// </summary>
-public class ProcessingStats
-{
-    public int TotalMessages { get; set; }
-    public int PendingMessages { get; set; }
-    public int ProcessedMessages { get; set; }
-    public int FailedMessages { get; set; }
-    public int ChangesDetected { get; set; }
-    public DateTime? LastProcessingRun { get; set; }
-}
