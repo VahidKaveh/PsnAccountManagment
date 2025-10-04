@@ -25,13 +25,10 @@ public class ProcessingService : IProcessingService
     private readonly IGameRepository _gameRepository;
     private readonly ILogger<ProcessingService> _logger;
 
-    // ==================== NEW SERVICES FOR CHANGE DETECTION ====================
+    // ==================== SERVICES FOR CHANGE DETECTION ====================
     private readonly IChangeDetectionService _changeDetectionService;
     private readonly IAdminNotificationRepository _notificationRepository;
     private readonly IChannelRepository _channelRepository;
-    private readonly IMatcherService _matcherService;
-    private readonly IChangeTrackerService _changeTrackerService;
-    private readonly IWorkerStateService _workerStateService;
     private readonly IConfiguration _configuration;
 
     public ProcessingService(
@@ -43,9 +40,6 @@ public class ProcessingService : IProcessingService
         IChangeDetectionService changeDetectionService,
         IAdminNotificationRepository notificationRepository,
         IChannelRepository channelRepository,
-        IMatcherService matcherService,
-        IChangeTrackerService changeTrackerService,
-        IWorkerStateService workerStateService,
         IConfiguration configuration)
     {
         _rawMessageRepo = rawMessageRepo;
@@ -56,13 +50,10 @@ public class ProcessingService : IProcessingService
         _changeDetectionService = changeDetectionService;
         _notificationRepository = notificationRepository;
         _channelRepository = channelRepository;
-        _matcherService = matcherService;
-        _changeTrackerService = changeTrackerService;
-        _workerStateService = workerStateService;
         _configuration = configuration;
     }
 
-    // ==================== NEW METHOD: Direct Message Processing ====================
+    // ==================== DIRECT MESSAGE PROCESSING ====================
     /// <summary>
     /// Processes a single message by ID with enhanced error handling and change detection
     /// </summary>
@@ -90,7 +81,7 @@ public class ProcessingService : IProcessingService
             message.Status = RawMessageStatus.Processing;
             message.UpdatedAt = DateTime.UtcNow;
             message.UpdatedBy = "ProcessingService";
-            _rawMessageRepo.Update(message);
+            await _rawMessageRepo.UpdateAsync(message);
             await _rawMessageRepo.SaveChangesAsync();
 
             try
@@ -143,7 +134,7 @@ public class ProcessingService : IProcessingService
                 account.StockStatus = StockStatus.OutOfStock;
                 account.UpdatedAt = DateTime.UtcNow;
 
-                _accountRepository.Update(account);
+                await _accountRepository.UpdateAsync(account);
                 await _accountRepository.SaveChangesAsync();
 
                 // Create admin notification
@@ -196,7 +187,7 @@ public class ProcessingService : IProcessingService
         // بررسی نوع تغییر و اعمال آن
         var changeDetails = message.ChangeDetails ?? "";
         var changeType = AdminNotificationType.AccountUpdated;
-
+        
         if (changeDetails.Contains("DELETED"))
         {
             account.StockStatus = StockStatus.OutOfStock;
@@ -207,12 +198,12 @@ public class ProcessingService : IProcessingService
         {
             // استخراج قیمت جدید و به‌روزرسانی
             var newPriceMatch = Regex.Match(
-                message.MessageText,
-                @"(\d+(?:\.\d+)?)\s*(?:تومان|تومن|T)",
+                message.MessageText, 
+                @"(\d+(?:\.\d+)?)\s*(?:تومان|تومن|T)", 
                 RegexOptions.IgnoreCase
             );
-
-            if (newPriceMatch.Success && decimal.TryParse(newPriceMatch.Groups[1].Value, out decimal newPrice))
+            
+            if (newPriceMatch.Success && decimal.TryParse(newPriceMatch.Groups.Value, out decimal newPrice))
             {
                 // Determine if it's PS4 or PS5 price based on message content
                 if (message.MessageText.ToLower().Contains("ps5"))
@@ -238,7 +229,7 @@ public class ProcessingService : IProcessingService
         account.Description = message.MessageText;
         account.LastScrapedAt = DateTime.UtcNow;
 
-        _accountRepository.Update(account);
+        await _accountRepository.UpdateAsync(account);
 
         // ایجاد notification برای admin
         await CreateAdminNotificationAsync(
@@ -248,28 +239,16 @@ public class ProcessingService : IProcessingService
             NotificationPriority.Normal,
             account.Id,
             "Account",
-            new
-            {
+            new { 
                 ChangeDetails = changeDetails,
                 MessageId = message.Id,
                 ChannelId = message.ChannelId
             }
         );
 
-        // Track the change if service is available
-        try
-        {
-            await _changeTrackerService.TrackChangeAsync(
-                account.Id,
-                "AccountUpdate",
-                changeDetails,
-                DateTime.UtcNow
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, $"Could not track change for account {account.Id}");
-        }
+        // Simple change tracking log (instead of using ChangeTrackerService)
+        _logger.LogInformation("Change tracked for account {AccountId}: {ChangeDetails} at {Timestamp}", 
+            account.Id, changeDetails, DateTime.UtcNow);
 
         _logger.LogInformation($"Account {account.Id} updated successfully with changes: {changeDetails}");
     }
@@ -281,20 +260,20 @@ public class ProcessingService : IProcessingService
     {
         _logger.LogInformation($"Processing new message {message.Id}");
 
-        // تلاش برای تطبیق پیغام با اکانت موجود
-        var matchedAccount = await _matcherService.FindMatchingAccountAsync(message.MessageText, message.ChannelId);
-
+        // Simple matching logic (instead of using MatcherService)
+        var matchedAccount = await FindMatchingAccountSimpleAsync(message.MessageText, message.ChannelId);
+        
         if (matchedAccount != null)
         {
             // Link message to existing account
             message.AccountId = matchedAccount.Id;
-
+            
             // Update account info if needed
             matchedAccount.LastScrapedAt = DateTime.UtcNow;
             matchedAccount.UpdatedAt = DateTime.UtcNow;
-
-            _accountRepository.Update(matchedAccount);
-
+            
+            await _accountRepository.UpdateAsync(matchedAccount);
+            
             _logger.LogInformation($"Message {message.Id} matched to existing account {matchedAccount.Id}");
         }
         else
@@ -315,16 +294,44 @@ public class ProcessingService : IProcessingService
                     NotificationPriority.Low,
                     message.Id,
                     "RawMessage",
-                    new
-                    {
-                        MessagePreview = message.MessageText.Length > 100
-                            ? message.MessageText.Substring(0, 100) + "..."
+                    new { 
+                        MessagePreview = message.MessageText.Length > 100 
+                            ? message.MessageText.Substring(0, 100) + "..." 
                             : message.MessageText
                     }
                 );
-
+                
                 _logger.LogInformation($"New message {message.Id} requires admin review");
             }
+        }
+    }
+
+    /// <summary>
+    /// Simple account matching logic
+    /// </summary>
+    private async Task<Account?> FindMatchingAccountSimpleAsync(string messageText, int channelId)
+    {
+        try
+        {
+            // Extract potential account identifier from message (external message ID, title, etc.)
+            var titleMatch = Regex.Match(messageText, @"^([^\n\r]+)", RegexOptions.Multiline);
+            if (titleMatch.Success)
+            {
+                var title = titleMatch.Groups[1].Value.Trim();
+                
+                // Look for accounts with similar title in the same channel
+                var accounts = await _accountRepository.GetByChannelIdAsync(channelId);
+                return accounts.FirstOrDefault(a => 
+                    !string.IsNullOrEmpty(a.Title) && 
+                    a.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error in simple account matching for channel {ChannelId}", channelId);
+            return null;
         }
     }
 
@@ -372,15 +379,9 @@ public class ProcessingService : IProcessingService
                 );
             }
 
-            // Update worker state
-            try
-            {
-                await _workerStateService.UpdateLastProcessingRunAsync(DateTime.UtcNow, processedCount, failedCount);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not update worker state");
-            }
+            // Simple state tracking (instead of using WorkerStateService)
+            _logger.LogInformation("Last processing run completed at {Timestamp}. Processed: {ProcessedCount}, Failed: {FailedCount}", 
+                DateTime.UtcNow, processedCount, failedCount);
         }
         catch (Exception ex)
         {
@@ -407,7 +408,7 @@ public class ProcessingService : IProcessingService
                 ProcessedMessages = await _rawMessageRepo.GetProcessedCountAsync(),
                 FailedMessages = await _rawMessageRepo.GetFailedCountAsync(),
                 ChangesDetected = await _rawMessageRepo.CountByStatusAsync(RawMessageStatus.PendingChange),
-                LastProcessingRun = await _workerStateService.GetLastProcessingRunAsync()
+                LastProcessingRun = DateTime.UtcNow // Simple fallback instead of WorkerStateService
             };
 
             return stats;
@@ -423,9 +424,9 @@ public class ProcessingService : IProcessingService
     /// Create admin notification with proper entity structure
     /// </summary>
     private async Task CreateAdminNotificationAsync(
-        AdminNotificationType type,
-        string title,
-        string message,
+        AdminNotificationType type, 
+        string title, 
+        string message, 
         NotificationPriority priority,
         int? relatedEntityId = null,
         string? relatedEntityType = null,
@@ -478,8 +479,8 @@ public class ProcessingService : IProcessingService
             // ==================== STEP 1: GENERATE CONTENT HASH ====================
             var contentHash = _changeDetectionService.GenerateContentHash(rawMessage.MessageText);
             rawMessage.ContentHash = contentHash;
-
-            _logger.LogDebug("Generated content hash for message {MessageId}: {Hash}",
+            
+            _logger.LogDebug("Generated content hash for message {MessageId}: {Hash}", 
                 rawMessageId, contentHash);
 
             // ==================== STEP 2: CHECK FOR CHANGES ====================
@@ -488,7 +489,7 @@ public class ProcessingService : IProcessingService
                 rawMessage.ExternalMessageId.ToString(),
                 contentHash);
 
-            _logger.LogInformation("Change detection result for message {MessageId}: HasChanged={HasChanged}",
+            _logger.LogInformation("Change detection result for message {MessageId}: HasChanged={HasChanged}", 
                 rawMessageId, hasChanged);
 
             if (hasChanged)
@@ -521,7 +522,7 @@ public class ProcessingService : IProcessingService
                 // Detect specific changes
                 var changeDetails = _changeDetectionService.DetectChanges(oldParsedData, newParsedData);
 
-                _logger.LogInformation("Change analysis complete for message {MessageId}: {ChangeType}, {ChangeCount} changes detected",
+                _logger.LogInformation("Change analysis complete for message {MessageId}: {ChangeType}, {ChangeCount} changes detected", 
                     rawMessageId, changeDetails.ChangeType, changeDetails.Changes.Count);
 
                 // Store change details
@@ -535,11 +536,11 @@ public class ProcessingService : IProcessingService
 
                 // IMPROVED: Always process changes, but mark them appropriately
                 rawMessage.Status = RawMessageStatus.Pending; // Process the change
-
+                
                 // Save the updated raw message BEFORE processing content
-                _rawMessageRepo.Update(rawMessage);
+                await _rawMessageRepo.UpdateAsync(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
-
+                
                 _logger.LogInformation("Change marked and saved for message {MessageId}, proceeding with processing", rawMessageId);
             }
             else
@@ -547,10 +548,10 @@ public class ProcessingService : IProcessingService
                 // No change detected, but still process if it's a new message
                 rawMessage.Status = RawMessageStatus.Pending;
                 rawMessage.IsChange = false;
-
-                _rawMessageRepo.Update(rawMessage);
+                
+                await _rawMessageRepo.UpdateAsync(rawMessage);
                 await _rawMessageRepo.SaveChangesAsync();
-
+                
                 _logger.LogDebug("No content change detected for message {MessageId}, processing normally", rawMessageId);
             }
 
@@ -628,7 +629,7 @@ public class ProcessingService : IProcessingService
             // If this was a change, log additional info
             if (rawMessage.IsChange)
             {
-                _logger.LogInformation("Successfully processed CHANGE for message {MessageId}: {AccountTitle} (Account ID: {AccountId})",
+                _logger.LogInformation("Successfully processed CHANGE for message {MessageId}: {AccountTitle} (Account ID: {AccountId})", 
                     rawMessage.Id, result.AccountTitle, result.AccountId);
             }
 
@@ -761,7 +762,7 @@ public class ProcessingService : IProcessingService
     private async Task<ProcessingResult> UpdateExistingAccount(Account existingAccount,
         ProcessMessageViewModel viewModel, RawMessage rawMessage)
     {
-        _logger.LogInformation("Updating existing Account ID: {AccountId} (Change: {IsChange})",
+        _logger.LogInformation("Updating existing Account ID: {AccountId} (Change: {IsChange})", 
             existingAccount.Id, rawMessage.IsChange);
 
         existingAccount.Title = viewModel.Title;
@@ -772,7 +773,7 @@ public class ProcessingService : IProcessingService
         existingAccount.AdditionalInfo = viewModel.AdditionalInfo;
         existingAccount.UpdatedAt = DateTime.UtcNow;
         existingAccount.LastScrapedAt = DateTime.UtcNow;
-
+        
         // Update description with new message content
         existingAccount.Description = rawMessage.MessageText;
 
@@ -782,7 +783,7 @@ public class ProcessingService : IProcessingService
         foreach (var game in gameEntities)
             existingAccount.AccountGames.Add(new AccountGame { Account = existingAccount, Game = game });
 
-        _accountRepository.Update(existingAccount);
+        await _accountRepository.UpdateAsync(existingAccount);
         await _accountRepository.SaveChangesAsync();
 
         _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId}), Change: {IsChange}",
@@ -905,4 +906,15 @@ public class ProcessingService : IProcessingService
     }
 }
 
-
+/// <summary>
+/// Statistics class for processing operations
+/// </summary>
+public class ProcessingStats
+{
+    public int TotalMessages { get; set; }
+    public int PendingMessages { get; set; }
+    public int ProcessedMessages { get; set; }
+    public int FailedMessages { get; set; }
+    public int ChangesDetected { get; set; }
+    public DateTime? LastProcessingRun { get; set; }
+}
