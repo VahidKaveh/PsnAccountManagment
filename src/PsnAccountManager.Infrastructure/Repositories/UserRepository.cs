@@ -54,11 +54,11 @@ public class UserRepository : GenericRepository<User, int>, IUserRepository
         {
             return await DbSet
                 .Include(u => u.Purchases)
-                    .ThenInclude(p => p.Account)
-                        .ThenInclude(a => a.AccountGames)
-                            .ThenInclude(ag => ag.Game)
+                .ThenInclude(p => p.Account)
+                .ThenInclude(a => a.AccountGames)
+                .ThenInclude(ag => ag.Game)
                 .Include(u => u.Purchases)
-                    .ThenInclude(p => p.Payments)
+                .ThenInclude(p => p.Payments)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(u => u.Id == userId);
         }
@@ -79,7 +79,7 @@ public class UserRepository : GenericRepository<User, int>, IUserRepository
         {
             return await DbSet
                 .Include(u => u.Wishlists)
-                    .ThenInclude(w => w.Game)
+                .ThenInclude(w => w.Game)
                 .FirstOrDefaultAsync(u => u.Id == userId);
         }
         catch (Exception ex)

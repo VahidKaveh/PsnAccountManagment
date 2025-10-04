@@ -1,4 +1,5 @@
 ﻿using PsnAccountManager.Shared.Enums;
+
 namespace PsnAccountManager.Domain.Entities;
 
 public class Request : BaseEntity<int>

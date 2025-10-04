@@ -1,8 +1,8 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Games;
 
@@ -25,6 +25,5 @@ public class IndexModel : PageModel
         Games = allGames;
 
         TotalGames = allGames.Count();
-
     }
 }

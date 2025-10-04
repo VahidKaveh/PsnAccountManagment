@@ -1,6 +1,7 @@
 ﻿using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Domain.Entities;
+
 public class Payment : BaseEntity<int>
 {
     public int PurchaseId { get; set; }

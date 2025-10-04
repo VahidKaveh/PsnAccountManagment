@@ -31,8 +31,8 @@ public class PurchaseRepository : GenericRepository<Purchase, int>, IPurchaseRep
             return await DbSet
                 .Where(p => p.BuyerUserId == userId)
                 .Include(p => p.Account)
-                    .ThenInclude(a => a.AccountGames)
-                        .ThenInclude(ag => ag.Game)
+                .ThenInclude(a => a.AccountGames)
+                .ThenInclude(ag => ag.Game)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
         }
@@ -50,8 +50,8 @@ public class PurchaseRepository : GenericRepository<Purchase, int>, IPurchaseRep
             return await DbSet
                 .Include(p => p.Buyer)
                 .Include(p => p.Account)
-                    .ThenInclude(a => a.AccountGames)
-                        .ThenInclude(ag => ag.Game)
+                .ThenInclude(a => a.AccountGames)
+                .ThenInclude(ag => ag.Game)
                 .Include(p => p.Payments)
                 .Include(p => p.SellerChannel)
                 .AsSplitQuery()
@@ -99,8 +99,8 @@ public class PurchaseRepository : GenericRepository<Purchase, int>, IPurchaseRep
             return await DbSet
                 .Include(p => p.Buyer)
                 .Include(p => p.Account)
-                    .ThenInclude(a => a.AccountGames)
-                        .ThenInclude(ag => ag.Game)
+                .ThenInclude(a => a.AccountGames)
+                .ThenInclude(ag => ag.Game)
                 .Include(p => p.Payments)
                 .Where(p => p.SellerChannelId == channelId)
                 .OrderByDescending(p => p.CreatedAt)

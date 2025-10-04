@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.Build.Framework;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -40,21 +41,6 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
         }
     }
 
-    public async Task<RawMessage?> GetByExternalIdAsync(int channelId, long externalMessageId)
-    {
-        try
-        {
-            return await DbSet
-                .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.ExternalMessageId == externalMessageId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting message by external ID {ExternalId} for channel {ChannelId}",
-                externalMessageId, channelId);
-            throw;
-        }
-    }
-
 
     public async Task<IEnumerable<RawMessage>> GetByStatusAsync(RawMessageStatus status)
     {
@@ -79,8 +65,8 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
         {
             return await DbSet
                 .Include(m => m.Channel)
-                    .ThenInclude(c => c.ParsingProfile)
-                        .ThenInclude(p => p.Rules)
+                .ThenInclude(c => c.ParsingProfile)
+                .ThenInclude(p => p.Rules)
                 .FirstOrDefaultAsync(m => m.Id == id);
         }
         catch (Exception ex)
@@ -200,10 +186,7 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
             message.ProcessedAt = DateTime.UtcNow;
             message.ProcessingResult = "Successfully processed";
 
-            if (accountId.HasValue)
-            {
-                message.AccountId = accountId.Value;
-            }
+            if (accountId.HasValue) message.AccountId = accountId.Value;
 
             DbSet.Update(message);
             await Context.SaveChangesAsync();
@@ -273,4 +256,84 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
             throw;
         }
     }
+    public async Task<IEnumerable<RawMessage>> GetPendingChangesAsync()
+        {
+            try
+            {
+                return await DbSet
+                    .AsNoTracking()
+                    .Include(rm => rm.Channel)
+                    .Include(rm => rm.PreviousMessage)
+                    .Where(rm => rm.Status == RawMessageStatus.PendingChange)
+                    .OrderByDescending(rm => rm.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting pending changes");
+                return Enumerable.Empty<RawMessage>();
+            }
+        }
+
+        public async Task<IEnumerable<RawMessage>> GetByStatusAsync(RawMessageStatus status, int skip, int take)
+        {
+            try
+            {
+                return await DbSet
+                    .AsNoTracking()
+                    .Include(rm => rm.Channel)
+                    .Include(rm => rm.PreviousMessage)
+                    .Where(rm => rm.Status == status)
+                    .OrderByDescending(rm => rm.CreatedAt)
+                    .Skip(skip)
+                    .Take(take)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting messages by status {Status}", status);
+                return Enumerable.Empty<RawMessage>();
+            }
+        }
+
+        public async Task<int> CountByStatusAsync(RawMessageStatus status)
+        {
+            try
+            {
+                return await DbSet
+                    .CountAsync(rm => rm.Status == status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error counting messages by status {Status}", status);
+                return 0;
+            }
+        }
+
+        public async Task<RawMessage?> GetByExternalIdAsync(int channelId, string externalId)
+        {
+            try
+            {
+                if (!long.TryParse(externalId, out var externalMessageId))
+                {
+                    _logger.LogWarning("Invalid external ID format: {ExternalId}", externalId);
+                    return null;
+                }
+
+                return await DbSet
+                    .AsNoTracking()
+                    .Include(rm => rm.Channel)
+                    .Where(rm => rm.ChannelId == channelId && rm.ExternalMessageId == externalMessageId)
+                    .OrderByDescending(rm => rm.CreatedAt)
+                    .FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting message by external ID {ExternalId} in channel {ChannelId}",
+                    externalId, channelId);
+                return null;
+            }
+        }
+
+
 }

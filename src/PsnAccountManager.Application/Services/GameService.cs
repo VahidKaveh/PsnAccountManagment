@@ -1,14 +1,15 @@
 ﻿using Microsoft.Extensions.Logging;
-using PsnAccountManager.Shared.DTOs;
+using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
-using PsnAccountManager.Application.Interfaces;
+using PsnAccountManager.Shared.DTOs;
 
 namespace PsnAccountManager.Application.Services;
 
 public class GameService : IGameService
 {
     private readonly IGameRepository _gameRepository;
+
     private readonly ILogger<GameService> _logger;
     // In a real-world project, you would inject an IMapper (like AutoMapper)
     // private readonly IMapper _mapper;
@@ -27,6 +28,7 @@ public class GameService : IGameService
             _logger.LogWarning("Game with ID {GameId} not found.", id);
             return null;
         }
+
         // Manual mapping (replace with AutoMapper)
         return MapToGameDto(game);
     }
@@ -49,9 +51,7 @@ public class GameService : IGameService
         // --- Business Logic: Ensure SonyCode is unique ---
         var existingGame = await _gameRepository.GetBySonyCodeAsync(createGameDto.SonyCode);
         if (existingGame != null)
-        {
             throw new InvalidOperationException($"A game with SonyCode '{createGameDto.SonyCode}' already exists.");
-        }
 
         // Map DTO to Entity
         var newGame = new Game
@@ -65,7 +65,8 @@ public class GameService : IGameService
         await _gameRepository.AddAsync(newGame);
         await _gameRepository.SaveChangesAsync();
 
-        _logger.LogInformation("New game created with ID {GameId} and SonyCode {SonyCode}", newGame.Id, newGame.SonyCode);
+        _logger.LogInformation("New game created with ID {GameId} and SonyCode {SonyCode}", newGame.Id,
+            newGame.SonyCode);
 
         // Map the newly created entity back to a DTO to return it
         return MapToGameDto(newGame);

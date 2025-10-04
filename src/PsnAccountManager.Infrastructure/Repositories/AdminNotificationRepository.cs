@@ -10,7 +10,9 @@ namespace PsnAccountManager.Infrastructure.Repositories;
 /// </summary>
 public class AdminNotificationRepository : GenericRepository<AdminNotification, int>, IAdminNotificationRepository
 {
-    public AdminNotificationRepository(PsnAccountManagerDbContext context) : base(context) { }
+    public AdminNotificationRepository(PsnAccountManagerDbContext context) : base(context)
+    {
+    }
 
     public async Task<IEnumerable<AdminNotification>> GetUnreadNotificationsAsync(int take = 10)
     {

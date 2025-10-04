@@ -1,4 +1,5 @@
 ﻿using PsnAccountManager.Domain.Entities;
+
 namespace PsnAccountManager.Domain.Interfaces;
 
 /// <summary>

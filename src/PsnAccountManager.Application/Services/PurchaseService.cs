@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
-using PsnAccountManager.Shared.DTOs;
-using PsnAccountManager.Domain.Interfaces;
-using PsnAccountManager.Shared.Enums;
 using PsnAccountManager.Application.Interfaces;
+using PsnAccountManager.Domain.Interfaces;
+using PsnAccountManager.Shared.DTOs;
+using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Application.Services;
 
@@ -25,19 +25,13 @@ public class PurchaseService : IPurchaseService
     // متد CreatePurchaseAsync که قبلاً پیاده‌سازی شد
     public async Task<PurchaseDto> CreatePurchaseAsync(CreatePurchaseDto dto)
     {
-        
         var account = await _accountRepository.GetByIdAsync(dto.AccountId);
         if (account == null || account.IsDeleted || account.StockStatus != StockStatus.InStock)
-        {
             throw new InvalidOperationException("Account is not available for purchase.");
-        }
         account.StockStatus = StockStatus.Reserved;
         _accountRepository.Update(account);
-        decimal purchasePrice = account.PricePs5 ?? account.PricePs4 ?? 0;
-        if (purchasePrice <= 0)
-        {
-            throw new InvalidOperationException("Cannot purchase an account with no price.");
-        }
+        var purchasePrice = account.PricePs5 ?? account.PricePs4 ?? 0;
+        if (purchasePrice <= 0) throw new InvalidOperationException("Cannot purchase an account with no price.");
 
         var purchase = new Domain.Entities.Purchase
         {

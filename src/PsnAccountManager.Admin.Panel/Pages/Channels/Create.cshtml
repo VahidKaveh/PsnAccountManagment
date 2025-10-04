@@ -13,7 +13,7 @@
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="form-group mb-3">
                 <label asp-for="Input.Name" class="form-label"></label>
-                <input asp-for="Input.Name" class="form-control" />
+                <input asp-for="Input.Name" class="form-control"/>
                 <span asp-validation-for="Input.Name" class="text-danger"></span>
             </div>
             <div class="form-group mb-3">
@@ -29,8 +29,8 @@
                 </select>
                 <span asp-validation-for="Input.ParsingProfileId" class="text-danger"></span>
             </div>
-            
-            <hr />
+
+            <hr/>
             <h5 class="mt-4 mb-3">Scraping Configuration</h5>
 
             <div class="form-group mb-3">
@@ -41,14 +41,14 @@
 
             <div class="form-group mb-3">
                 <label asp-for="Input.FetchValue" class="form-label"></label>
-                <input asp-for="Input.FetchValue" type="number" class="form-control" />
+                <input asp-for="Input.FetchValue" type="number" class="form-control"/>
                 <span asp-validation-for="Input.FetchValue" class="text-danger"></span>
                 <small class="form-text text-muted">This value is only used if Fetch Mode is not 'SinceLastMessage'.</small>
             </div>
 
             <div class="form-group mb-3">
                 <label asp-for="Input.DelayAfterScrapeMs" class="form-label"></label>
-                <input asp-for="Input.DelayAfterScrapeMs" type="number" class="form-control" />
+                <input asp-for="Input.DelayAfterScrapeMs" type="number" class="form-control"/>
                 <span asp-validation-for="Input.DelayAfterScrapeMs" class="text-danger"></span>
             </div>
         </div>

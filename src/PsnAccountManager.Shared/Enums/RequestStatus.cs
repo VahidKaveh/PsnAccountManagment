@@ -1,5 +1,9 @@
-﻿
-namespace PsnAccountManager.Shared.Enums
+﻿namespace PsnAccountManager.Shared.Enums;
+
+public enum RequestStatus
 {
-    public enum RequestStatus { Open, InProgress, Closed, Cancelled }
+    Open,
+    InProgress,
+    Closed,
+    Cancelled
 }

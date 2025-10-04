@@ -10,7 +10,9 @@
     var alertClass = Model.StatusMessage.StartsWith("Error") ? "alert-danger" : "alert-success";
     <div class="alert @alertClass alert-dismissible">
         <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
-        <h5><i class="icon @(alertClass == "alert-success" ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill")"></i> @(alertClass == "alert-success" ? "Success!" : "Error!")</h5>
+        <h5>
+            <i class="icon @(alertClass == "alert-success" ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill")"></i> @(alertClass == "alert-success" ? "Success!" : "Error!")
+        </h5>
         @Model.StatusMessage
     </div>
 }
@@ -18,58 +20,64 @@
 <!-- Main form that wraps everything -->
 <form method="post">
     <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
-    <input type="hidden" asp-for="ProfileVM.Id" />
+    <input type="hidden" asp-for="ProfileVM.Id"/>
 
     <div class="card card-primary card-outline">
-        <div class="card-header"><h3 class="card-title">Edit Profile: @Model.ProfileVM.Name</h3></div>
+        <div class="card-header">
+            <h3 class="card-title">Edit Profile: @Model.ProfileVM.Name</h3>
+        </div>
         <div class="card-body">
             <div class="form-group">
                 <label asp-for="ProfileVM.Name" class="form-label"></label>
-                <input asp-for="ProfileVM.Name" class="form-control" />
+                <input asp-for="ProfileVM.Name" class="form-control"/>
                 <span asp-validation-for="ProfileVM.Name" class="text-danger"></span>
             </div>
         </div>
     </div>
 
     <div class="card card-info card-outline">
-        <div class="card-header"><h3 class="card-title">Parsing Rules</h3></div>
+        <div class="card-header">
+            <h3 class="card-title">Parsing Rules</h3>
+        </div>
         <div class="card-body">
             <table class="table table-bordered">
                 <thead>
-                    <tr>
-                        <th>Field Type</th>
-                        <th>Regex Pattern</th>
-                        <th style="width: 120px;">Actions</th>
-                    </tr>
+                <tr>
+                    <th>Field Type</th>
+                    <th>Regex Pattern</th>
+                    <th style="width: 120px;">Actions</th>
+                </tr>
                 </thead>
                 <tbody id="rules-table-body">
-                    @for (int i = 0; i < Model.ProfileVM.Rules.Count; i++)
-                    {
-                        <tr>
-                            <td>
-                                <input type="hidden" asp-for="ProfileVM.Rules[i].Id" />
-                                <input type="hidden" asp-for="ProfileVM.Rules[i].ParsingProfileId" />
-                                <input type="hidden" asp-for="ProfileVM.Rules[i].FieldType" />
-                                <strong>@Model.ProfileVM.Rules[i].FieldType</strong>
-                            </td>
-                            <td>
-                                <input asp-for="ProfileVM.Rules[i].RegexPattern" class="form-control" />
-                                <span asp-validation-for="ProfileVM.Rules[i].RegexPattern" class="text-danger"></span>
-                            </td>
-                            <td class="text-center">
-                                <button type="button" class="btn btn-danger btn-sm delete-rule-btn">
-                                    <i class="bi bi-trash-fill"></i> Delete
-                                </button>
-                            </td>
-                        </tr>
-                    }
+                @for (var i = 0; i < Model.ProfileVM.Rules.Count; i++)
+                {
+                    <tr>
+                        <td>
+                            <input type="hidden" asp-for="ProfileVM.Rules[i].Id"/>
+                            <input type="hidden" asp-for="ProfileVM.Rules[i].ParsingProfileId"/>
+                            <input type="hidden" asp-for="ProfileVM.Rules[i].FieldType"/>
+                            <strong>@Model.ProfileVM.Rules[i].FieldType</strong>
+                        </td>
+                        <td>
+                            <input asp-for="ProfileVM.Rules[i].RegexPattern" class="form-control"/>
+                            <span asp-validation-for="ProfileVM.Rules[i].RegexPattern" class="text-danger"></span>
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-danger btn-sm delete-rule-btn">
+                                <i class="bi bi-trash-fill"></i> Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
                 </tbody>
             </table>
         </div>
     </div>
 
     <div class="card card-success card-outline">
-        <div class="card-header"><h3 class="card-title">Add New Rule</h3></div>
+        <div class="card-header">
+            <h3 class="card-title">Add New Rule</h3>
+        </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-3">
@@ -85,7 +93,7 @@
                 </div>
                 <div class="col-md-7">
                     <label for="newRuleRegex">Regex Pattern</label>
-                    <input id="newRuleRegex" class="form-control" placeholder="Enter Regex Pattern..." />
+                    <input id="newRuleRegex" class="form-control" placeholder="Enter Regex Pattern..."/>
                     <span id="newRuleRegex-validation" class="text-danger d-block mt-1"></span>
                 </div>
                 <div class="col-md-2 align-self-end">

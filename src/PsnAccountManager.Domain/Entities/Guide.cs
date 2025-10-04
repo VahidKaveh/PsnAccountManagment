@@ -1,4 +1,5 @@
 ﻿namespace PsnAccountManager.Domain.Entities;
+
 public class Guide : BaseEntity<int>
 {
     public string Title { get; set; }

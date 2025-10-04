@@ -34,7 +34,7 @@ public class GameConfiguration : IEntityTypeConfiguration<Game>
             .HasColumnName("poster_url")
             .HasMaxLength(500);
 
- 
+
         builder.Property(g => g.Description)
             .HasColumnName("description")
             .IsRequired(false)

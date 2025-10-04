@@ -72,7 +72,7 @@ public class AccountConfiguration : IEntityTypeConfiguration<Account>
             .IsRequired(false)
             .HasMaxLength(500);
 
-  
+
         builder.Property(a => a.RawMessageId)
             .IsRequired(false); // Nullable
 

@@ -1,5 +1,5 @@
-﻿using PsnAccountManager.Domain.Entities;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using PsnAccountManager.Domain.Entities;
 
 namespace PsnAccountManager.Domain.Interfaces;
 

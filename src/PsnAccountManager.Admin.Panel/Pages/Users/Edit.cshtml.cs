@@ -1,10 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.Enums;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Users;
 
@@ -12,8 +12,7 @@ public class EditModel : PageModel
 {
     private readonly IUserRepository _userRepository;
 
-    [BindProperty]
-    public UserInputModel Input { get; set; }
+    [BindProperty] public UserInputModel Input { get; set; }
 
     public class UserInputModel
     {
@@ -21,12 +20,10 @@ public class EditModel : PageModel
         public long TelegramId { get; set; }
         public string Username { get; set; }
 
-        [Required]
-        public UserStatus Status { get; set; }
+        [Required] public UserStatus Status { get; set; }
     }
 
-    [TempData]
-    public string StatusMessage { get; set; }
+    [TempData] public string StatusMessage { get; set; }
 
     public EditModel(IUserRepository userRepository)
     {

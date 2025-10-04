@@ -1,9 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Games;
 
@@ -11,8 +11,7 @@ public class EditModel : PageModel
 {
     private readonly IGameRepository _gameRepository;
 
-    [BindProperty]
-    public GameInputModel Input { get; set; }
+    [BindProperty] public GameInputModel Input { get; set; }
 
     public class GameInputModel
     {
@@ -23,11 +22,9 @@ public class EditModel : PageModel
         [StringLength(255)]
         public string Title { get; set; }
 
-        [StringLength(100)]
-        public string? SonyCode { get; set; }
+        [StringLength(100)] public string? SonyCode { get; set; }
 
-        [StringLength(50)]
-        public string? Region { get; set; }
+        [StringLength(50)] public string? Region { get; set; }
 
         [StringLength(500)]
         [Url(ErrorMessage = "Please enter a valid URL for the poster.")]
@@ -41,16 +38,10 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(int? id)
     {
-        if (id == null)
-        {
-            return NotFound();
-        }
+        if (id == null) return NotFound();
 
         var game = await _gameRepository.GetByIdAsync(id.Value);
-        if (game == null)
-        {
-            return NotFound();
-        }
+        if (game == null) return NotFound();
 
         // Map the entity to our InputModel
         Input = new GameInputModel
@@ -67,16 +58,10 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
+        if (!ModelState.IsValid) return Page();
 
         var gameToUpdate = await _gameRepository.GetByIdAsync(Input.Id);
-        if (gameToUpdate == null)
-        {
-            return NotFound();
-        }
+        if (gameToUpdate == null) return NotFound();
 
         // Map the updated values from the InputModel back to the entity
         gameToUpdate.Title = Input.Title;

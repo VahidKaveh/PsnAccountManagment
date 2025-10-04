@@ -1,8 +1,8 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
-using System.ComponentModel.DataAnnotations;
 
 namespace PsnAccountManager.Admin.Panel.Pages.ParsingProfiles;
 
@@ -20,14 +20,13 @@ public class CreateModel : PageModel
         _profileRepository = profileRepository;
     }
 
-    public void OnGet() { }
+    public void OnGet()
+    {
+    }
 
     public async Task<IActionResult> OnPostAsync()
     {
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
+        if (!ModelState.IsValid) return Page();
 
         var newProfile = new ParsingProfile { Name = ProfileName };
         await _profileRepository.AddAsync(newProfile);

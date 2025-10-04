@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.Enums;
+using PsnAccountManager.Shared.ViewModels;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Accounts;
 
@@ -10,19 +12,20 @@ public class IndexModel : PageModel
 {
     private readonly IAccountRepository _accountRepository;
 
-    public List<Account> Accounts { get; set; }
+    // Properties for the view
+    public List<Account> Accounts { get; set; } = new();
+    public AccountStatsViewModel AccountStats { get; set; } = new();
+
+    [BindProperty(SupportsGet = true)] public string? SearchTerm { get; set; }
+
+    [BindProperty(SupportsGet = true)] public StockStatus? FilterStatus { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public string? SearchTerm { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public StockStatus? FilterStatus { get; set; }
-
-    // Pagination properties
-    [BindProperty(SupportsGet = true)]
+    [Range(1, int.MaxValue)]
     public int CurrentPage { get; set; } = 1;
+
     public int TotalPages { get; set; }
-    public int PageSize { get; set; } = 10;
+    public int PageSize { get; set; } = 15;
 
     public IndexModel(IAccountRepository accountRepository)
     {
@@ -31,29 +34,17 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync()
     {
-        var allAccounts = (await _accountRepository.GetAllWithDetailsAsync()).AsQueryable(); // Assuming GetAllWithDetailsAsync in repo
+        // Get statistics using the new repository method
+        AccountStats = await _accountRepository.GetAccountStatsAsync();
 
-        // Apply search filter
-        if (!string.IsNullOrEmpty(SearchTerm))
-        {
-            allAccounts = allAccounts.Where(a => a.Title.Contains(SearchTerm) || a.ExternalId.Contains(SearchTerm));
-        }
+        // Get paged accounts using the new repository method
+        var (accounts, totalCount) = await _accountRepository.GetPagedAccountsAsync(
+            CurrentPage,
+            PageSize,
+            SearchTerm,
+            FilterStatus);
 
-        // Apply status filter
-        if (FilterStatus.HasValue)
-        {
-            allAccounts = allAccounts.Where(a => a.StockStatus == FilterStatus.Value);
-        }
-
-        // Calculate total pages
-        var totalRecords = allAccounts.Count();
-        TotalPages = (int)System.Math.Ceiling(totalRecords / (double)PageSize);
-
-        // Apply pagination
-        Accounts = allAccounts
-            .OrderByDescending(a => a.LastScrapedAt)
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
+        Accounts = accounts;
+        TotalPages = (int)Math.Ceiling(totalCount / (double)PageSize);
     }
 }

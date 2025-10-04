@@ -20,4 +20,6 @@ public class ProcessingResult
     public string AccountTitle { get; set; }
     public List<ChangeInfo> DetectedChanges { get; set; } = new();
     public bool IsNewAccount { get; set; }
+    public string? ErrorMessage { get; set; }
+    public bool IsChange { get; set; }
 }

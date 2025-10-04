@@ -1,12 +1,12 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Shared.DTOs;
 using PsnAccountManager.Shared.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using TL;
 using WTelegram;
 
@@ -112,9 +112,8 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
         int parameter)
     {
         if (!_isAuthenticated)
-        {
-            throw new InvalidOperationException("Not authenticated with Telegram. Call LoginUserIfNeededAsync() first.");
-        }
+            throw new InvalidOperationException(
+                "Not authenticated with Telegram. Call LoginUserIfNeededAsync() first.");
 
         try
         {
@@ -156,10 +155,8 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
 
             // Check if it's a rate limit error
             if (ex.Message.Contains("FLOOD_WAIT"))
-            {
                 _logger.LogWarning("Rate limit hit for channel {Channel}. Consider increasing delays.",
                     channelIdentifier);
-            }
 
             throw;
         }
@@ -185,7 +182,7 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
     {
         var cutoffDate = DateTime.UtcNow.AddHours(-hours);
         var allMessages = new List<TelegramMessageDto>();
-        int offsetId = 0;
+        var offsetId = 0;
         const int batchSize = 100;
 
         // Keep fetching until we reach the cutoff date
@@ -193,7 +190,7 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
         {
             var history = await _client.Messages_GetHistory(
                 inputPeer,
-                offset_id: offsetId,
+                offsetId,
                 limit: batchSize);
 
             if (!history.Messages.Any())
@@ -230,7 +227,7 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
         int lastMessageId)
     {
         var allMessages = new List<TelegramMessageDto>();
-        int offsetId = 0;
+        var offsetId = 0;
         const int batchSize = 100;
 
         // Keep fetching until we reach the last known message
@@ -238,7 +235,7 @@ public class TelegramClientWrapper : ITelegramClient, IDisposable
         {
             var history = await _client.Messages_GetHistory(
                 inputPeer,
-                offset_id: offsetId,
+                offsetId,
                 limit: batchSize);
 
             if (!history.Messages.Any())

@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Interfaces;
-using PsnAccountManager.Shared.ViewModels; 
+using PsnAccountManager.Shared.ViewModels;
 
 namespace PsnAccountManager.Admin.Panel.Pages.ParsingProfiles;
 
@@ -10,11 +10,9 @@ public class EditModel : PageModel
     private readonly IParsingProfileRepository _profileRepository;
     private readonly ILogger<EditModel> _logger;
 
-    [BindProperty]
-    public ParsingProfileEditViewModel ProfileVM { get; set; }
+    [BindProperty] public ParsingProfileEditViewModel ProfileVM { get; set; }
 
-    [TempData]
-    public string StatusMessage { get; set; }
+    [TempData] public string StatusMessage { get; set; }
 
     public EditModel(IParsingProfileRepository profileRepository, ILogger<EditModel> logger)
     {
@@ -63,14 +61,10 @@ public class EditModel : PageModel
         // 1. Remove deleted rules
         var submittedRuleIds = ProfileVM.Rules.Select(r => r.Id).ToList();
         var rulesToDelete = profileToUpdate.Rules.Where(r => !submittedRuleIds.Contains(r.Id)).ToList();
-        foreach (var rule in rulesToDelete)
-        {
-            profileToUpdate.Rules.Remove(rule);
-        }
+        foreach (var rule in rulesToDelete) profileToUpdate.Rules.Remove(rule);
 
         // 2. Update existing and add new rules
         foreach (var ruleVM in ProfileVM.Rules)
-        {
             if (ruleVM.Id != 0) // Existing rule
             {
                 var existingRule = profileToUpdate.Rules.First(r => r.Id == ruleVM.Id);
@@ -85,7 +79,6 @@ public class EditModel : PageModel
                     RegexPattern = ruleVM.RegexPattern
                 });
             }
-        }
 
         await _profileRepository.SaveChangesAsync();
 

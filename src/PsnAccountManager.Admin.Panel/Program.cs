@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using PsnAccountManager.Application.Hubs;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Application.Services;
 using PsnAccountManager.Domain.Interfaces;
@@ -6,7 +7,6 @@ using PsnAccountManager.Infrastructure.BackgroundWorkers;
 using PsnAccountManager.Infrastructure.Data;
 using PsnAccountManager.Infrastructure.Repositories;
 using PsnAccountManager.Infrastructure.Services;
-using TL;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,13 +17,13 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Infrastructure Layer Services ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<PsnAccountManagerDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mySqlOptionsAction: sqlOptions =>
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), sqlOptions =>
     {
         sqlOptions.MigrationsAssembly(typeof(PsnAccountManagerDbContext).Assembly.FullName);
         sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null);
+            5,
+            TimeSpan.FromSeconds(30),
+            null);
     }));
 
 // Register Repositories
@@ -37,12 +37,11 @@ builder.Services.AddScoped<IPurchaseRepository, PurchaseRepository>();
 builder.Services.AddScoped<IPurchaseSuggestionRepository, PurchaseSuggestionRepository>();
 builder.Services.AddScoped<IRawMessageRepository, RawMessageRepository>();
 builder.Services.AddScoped<IRequestRepository, RequestRepository>();
+builder.Services.AddScoped<IAccountHistoryRepository, AccountHistoryRepository>();
 builder.Services.AddScoped<ISettingRepository, SettingRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAdminNotificationRepository, AdminNotificationRepository>();
-builder.Services.AddScoped<ILearningDataRepository, LearningDataRepository>();
 builder.Services.AddScoped<IMessageParser, MessageParser>();
-
 
 
 // --- Application Layer Services ---
@@ -55,6 +54,10 @@ builder.Services.AddScoped<IMessageParser, MessageParser>();
 builder.Services.AddScoped<IPurchaseService, PurchaseService>();
 builder.Services.AddScoped<IProcessingService, ProcessingService>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
+builder.Services.AddScoped<IChangeTrackerService, ChangeTrackerService>();
+builder.Services.AddScoped<IChangeDetectionService, ChangeDetectionService>();
+
+
 
 // --- External Service Wrappers & Background Workers ---
 builder.Services.AddSingleton<ITelegramClient, TelegramClientWrapper>();
@@ -62,6 +65,7 @@ builder.Services.AddHostedService<ScraperWorker>();
 
 // --- Presentation Layer Services ---
 builder.Services.AddRazorPages();
+builder.Services.AddSignalR();
 
 
 // ===================================================================
@@ -91,7 +95,7 @@ app.UseRouting(); // Marks the position in the middleware pipeline where routing
 app.UseAuthorization(); // Authorizes a user to access secure resources. MUST be after UseRouting.
 
 app.MapRazorPages(); // Configures endpoints for Razor Pages. MUST be at the end.
-
+app.MapHub<DashboardHub>("/dashboardHub");
 
 // ===================================================================
 // 4. Run the Application

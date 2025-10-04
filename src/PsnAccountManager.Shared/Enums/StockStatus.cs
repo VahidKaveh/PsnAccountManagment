@@ -1,5 +1,9 @@
-﻿
-namespace PsnAccountManager.Shared.Enums
+﻿namespace PsnAccountManager.Shared.Enums;
+
+public enum StockStatus
 {
-    public enum StockStatus { InStock, OutOfStock, Reserved }
+    InStock,
+    Sold,
+    OutOfStock,
+    Reserved
 }

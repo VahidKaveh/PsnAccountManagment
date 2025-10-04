@@ -1,6 +1,6 @@
-﻿using PsnAccountManager.Domain.Entities;
+﻿using System.Linq.Expressions;
+using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Shared.Enums;
-using System.Linq.Expressions;
 
 namespace PsnAccountManager.Domain.Interfaces;
 
@@ -10,7 +10,6 @@ namespace PsnAccountManager.Domain.Interfaces;
 /// </summary>
 public interface IRawMessageRepository : IGenericRepository<RawMessage, int>
 {
-    // ==================== EXISTING METHODS ====================
 
     /// <summary>
     /// Gets all pending messages with their channel information
@@ -20,11 +19,23 @@ public interface IRawMessageRepository : IGenericRepository<RawMessage, int>
     /// <summary>
     /// Finds a message by its external ID within a channel
     /// </summary>
-    Task<RawMessage?> GetByExternalIdAsync(int channelId, long externalMessageId);
+    Task<RawMessage?> GetByExternalIdAsync(int channelId, string externalMessageId);
 
 
-    // ==================== NEW METHODS (CRITICAL) ====================
+    /// <summary>
+    /// Gets all pending messages that represent changes
+    /// </summary>
+    Task<IEnumerable<RawMessage>> GetPendingChangesAsync();
 
+    /// <summary>
+    /// Gets messages by status with pagination
+    /// </summary>
+    Task<IEnumerable<RawMessage>> GetByStatusAsync(RawMessageStatus status, int skip, int take);
+
+    /// <summary>
+    /// Counts messages by status
+    /// </summary>
+    Task<int> CountByStatusAsync(RawMessageStatus status);
     /// <summary>
     /// Gets messages by their status
     /// </summary>

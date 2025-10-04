@@ -1,12 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Infrastructure.Data;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Infrastructure.Repositories;
 
-public class RequestRepository(PsnAccountManagerDbContext context) : GenericRepository<Request, int>(context), IRequestRepository
+public class RequestRepository(PsnAccountManagerDbContext context)
+    : GenericRepository<Request, int>(context), IRequestRepository
 {
     public async Task<Request?> GetRequestWithGamesAsync(int requestId)
     {

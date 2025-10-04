@@ -1,11 +1,11 @@
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.Enums;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Channels;
 
@@ -14,18 +14,15 @@ public class EditModel : PageModel
     private readonly IChannelRepository _channelRepository;
     private readonly IParsingProfileRepository _profileRepository;
 
-    [BindProperty]
-    public InputModel Input { get; set; }
+    [BindProperty] public InputModel Input { get; set; }
 
     public SelectList ParsingProfiles { get; set; }
 
     public class InputModel
     {
         public int Id { get; set; }
-        [Required]
-        public string Name { get; set; }
-        [Required]
-        public ChannelStatus Status { get; set; }
+        [Required] public string Name { get; set; }
+        [Required] public ChannelStatus Status { get; set; }
         public int? ParsingProfileId { get; set; }
 
         [Required]
@@ -57,7 +54,7 @@ public class EditModel : PageModel
         {
             Id = channel.Id,
             Name = channel.Name,
-            
+
             Status = channel.Status,
             ParsingProfileId = channel.ParsingProfileId,
             TelegramFetchMode = channel.TelegramFetchMode,
@@ -96,6 +93,7 @@ public class EditModel : PageModel
     private async Task LoadParsingProfiles()
     {
         var profiles = await _profileRepository.GetAllAsync();
-        ParsingProfiles = new SelectList(profiles, nameof(ParsingProfile.Id), nameof(ParsingProfile.Name), Input?.ParsingProfileId);
+        ParsingProfiles = new SelectList(profiles, nameof(ParsingProfile.Id), nameof(ParsingProfile.Name),
+            Input?.ParsingProfileId);
     }
 }

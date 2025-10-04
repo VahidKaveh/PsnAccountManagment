@@ -2,35 +2,243 @@
 
 @{
     var unreadCount = (int)ViewData["UnreadCount"];
+    var notifications = Model?.Take(8).ToList() ?? new List<PsnAccountManager.Domain.Entities.AdminNotification>();
 }
 
 <li class="nav-item dropdown">
-    <a class="nav-link" data-toggle="dropdown" href="#">
-        <i class="bi bi-bell-fill"></i>
+    <a class="nav-link" data-toggle="dropdown" href="#" title="Notifications">
+        <i class="fas fa-bell"></i>
         @if (unreadCount > 0)
         {
-            <span class="badge badge-warning navbar-badge">@unreadCount</span>
+            <span class="badge badge-warning navbar-badge">
+                @(unreadCount > 99 ? "99+" : unreadCount.ToString())
+            </span>
         }
     </a>
-    <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-        @if (unreadCount > 0)
+    <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right" style="max-height: 400px; overflow-y: auto;">
+        @if (unreadCount > 0 && notifications.Any())
         {
-            <span class="dropdown-header">@unreadCount New Notifications</span>
+            <span class="dropdown-header">
+                <i class="fas fa-bell mr-2"></i>@unreadCount New Notification@(unreadCount == 1 ? "" : "s")
+            </span>
             <div class="dropdown-divider"></div>
-            @foreach (var notification in Model)
+
+            @foreach (var notification in notifications)
             {
-                <a href="@notification.LinkUrl" class="dropdown-item">
-                    <i class="bi bi-file-earmark-text mr-2"></i>
-                    <span>@notification.Message.Substring(0, Math.Min(notification.Message.Length, 35))...</span>
-                    <span class="float-right text-muted text-sm">@notification.CreatedAt.ToShortTimeString()</span>
+                <a href="@GetNotificationUrl(notification)"
+                   class="dropdown-item notification-item @(!notification.IsRead ? "unread" : "")"
+                   data-notification-id="@notification.Id">
+
+                    <div class="media">
+                        <div class="media-object">
+                            @GetNotificationIcon(notification.Type, notification.Priority)
+                        </div>
+                        <div class="media-body ml-2">
+                            <h6 class="dropdown-item-title mb-1">
+                                @notification.Title
+                                @if (!notification.IsRead)
+                                {
+                                    <span class="badge badge-primary badge-sm float-right">New</span>
+                                }
+                            </h6>
+                            <p class="text-sm text-muted mb-1">
+                                @TruncateText(notification.Message, 60)
+                            </p>
+                            <p class="text-sm text-muted mb-0">
+                                <i class="far fa-clock mr-1"></i> @GetTimeAgo(notification.CreatedAt)
+                            </p>
+                        </div>
+                    </div>
                 </a>
                 <div class="dropdown-divider"></div>
             }
         }
         else
         {
-            <span class="dropdown-header">No New Notifications</span>
+            <div class="dropdown-header text-center py-3">
+                <i class="fas fa-bell-slash text-muted fa-2x mb-2"></i>
+                <br />
+                <span class="text-muted">No New Notifications</span>
+            </div>
         }
-        <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
+
+        <!-- Footer Actions -->
+        <div class="dropdown-footer bg-light">
+            <div class="row no-gutters">
+                <div class="col-6">
+                    <a href="/Admin/Notifications" class="btn btn-sm btn-outline-secondary btn-block">
+                        <i class="fas fa-list mr-1"></i> View All
+                    </a>
+                </div>
+                <div class="col-6">
+                    @if (unreadCount > 0)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-block"
+                                onclick="markAllAsRead()">
+                            <i class="fas fa-check-double mr-1"></i> Mark All Read
+                        </button>
+                    }
+                    else
+                    {
+                        <a href="/Admin/Settings" class="btn btn-sm btn-outline-secondary btn-block">
+                            <i class="fas fa-cog mr-1"></i> Settings
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </li>
+
+@functions {
+    private string GetNotificationIcon(PsnAccountManager.Shared.Enums.AdminNotificationType type, PsnAccountManager.Shared.Enums.NotificationPriority priority)
+    {
+        var priorityClass = priority switch
+        {
+            PsnAccountManager.Shared.Enums.NotificationPriority.Critical => "text-danger",
+            PsnAccountManager.Shared.Enums.NotificationPriority.High => "text-warning",
+            PsnAccountManager.Shared.Enums.NotificationPriority.Normal => "text-info",
+            _ => "text-secondary"
+        };
+
+        var icon = type switch
+        {
+            PsnAccountManager.Shared.Enums.AdminNotificationType.System => "fas fa-server",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.AccountChanged => "fas fa-user-edit",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.ScraperIssue => "fas fa-robot",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.ProcessingError => "fas fa-exclamation-triangle",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.ChannelIssue => "fas fa-broadcast-tower",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.Security => "fas fa-shield-alt",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.Performance => "fas fa-tachometer-alt",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.DataQuality => "fas fa-database",
+            _ => "fas fa-info-circle"
+        };
+
+        return $"<i class=\"{icon} {priorityClass}\"></i>";
+    }
+
+    private string GetNotificationUrl(PsnAccountManager.Domain.Entities.AdminNotification notification)
+    {
+        // Generate appropriate URL based on notification type and related entity
+        return notification.Type switch
+        {
+            PsnAccountManager.Shared.Enums.AdminNotificationType.AccountChanged when notification.RelatedEntityType == "RawMessage"
+                => $"/Admin/Inbox?messageId={notification.RelatedEntityId}",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.AccountChanged
+                => $"/Admin/Accounts?search={notification.RelatedEntityId}",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.ChannelIssue
+                => $"/Admin/Channels?channelId={notification.RelatedEntityId}",
+            PsnAccountManager.Shared.Enums.AdminNotificationType.ScraperIssue
+                => "/Admin/Dashboard",
+            _ => $"/Admin/Notifications/{notification.Id}"
+        };
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text ?? "";
+
+        return text.Substring(0, maxLength).Trim() + "...";
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+
+        return timeSpan switch
+        {
+            { TotalMinutes: < 1 } => "Just now",
+            { TotalMinutes: < 60 } => $"{(int)timeSpan.TotalMinutes}m ago",
+            { TotalHours: < 24 } => $"{(int)timeSpan.TotalHours}h ago",
+            { TotalDays: < 7 } => $"{(int)timeSpan.TotalDays}d ago",
+            _ => dateTime.ToString("MMM dd")
+        };
+    }
+}
+
+<style>
+    .notification-item.unread {
+        background-color: #f8f9fa;
+        border-left: 3px solid #007bff;
+    }
+
+    .notification-item:hover {
+        background-color: #e9ecef;
+    }
+
+    .dropdown-item-title {
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .dropdown-footer {
+        border-top: 1px solid #dee2e6;
+        padding: 0.5rem;
+        margin: 0;
+    }
+
+    .media-object {
+        width: 24px;
+        text-align: center;
+    }
+</style>
+
+<script>
+    function markAllAsRead() {
+        // AJAX call to mark all notifications as read
+        fetch('/Admin/Notifications/MarkAllAsRead', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                // Reload page or update UI
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error marking notifications as read:', error);
+        });
+    }
+
+    // Auto-refresh notifications every 2 minutes
+    setInterval(function() {
+        // You can implement partial view refresh here if needed
+        // $('#notification-container').load('/Admin/Notifications/Partial');
+    }, 120000); // 2 minutes
+
+    // Mark individual notification as read when clicked
+    $(document).on('click', '.notification-item[data-notification-id]', function() {
+        var notificationId = $(this).data('notification-id');
+
+        fetch(`/Admin/Notifications/MarkAsRead/${notificationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                // Remove unread styling
+                $(this).removeClass('unread');
+
+                // Update badge count
+                var badge = $('.navbar-badge');
+                var currentCount = parseInt(badge.text()) || 0;
+                if (currentCount > 1) {
+                    badge.text(currentCount - 1);
+                } else {
+                    badge.hide();
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error marking notification as read:', error);
+        });
+    });
+</script>

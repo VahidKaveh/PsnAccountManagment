@@ -1,0 +1,90 @@
+﻿@page
+@model PsnAccountManager.Admin.Panel.Pages.Test.RepositoryTestModel
+@{
+    ViewData["Title"] = "Repository Test Page";
+}
+
+<!-- Content Header -->
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1><i class="fas fa-flask text-info mr-2"></i>Repository Test Page</h1>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Message -->
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-info alert-dismissible">
+        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+        <h5><i class="icon fas fa-info"></i> Test Result!</h5>
+        @Model.StatusMessage
+    </div>
+}
+
+<!-- Main content -->
+<div class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card card-info">
+                    <div class="card-header">
+                        <h3 class="card-title">Current Statistics</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Pending Changes:</strong></td>
+                                <td><span class="badge bg-warning">@Model.PendingChangesCount</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Pending Messages:</strong></td>
+                                <td><span class="badge bg-info">@Model.PendingMessagesCount</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Total Active Accounts:</strong></td>
+                                <td><span class="badge bg-success">@Model.TotalActiveAccounts</span></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Test Functions</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" class="mb-3">
+                            <button type="submit" asp-page-handler="TestHash" class="btn btn-primary btn-block">
+                                <i class="fas fa-hashtag mr-1"></i> Test Hash Generation
+                            </button>
+                        </form>
+
+                        <form method="post" class="mb-3">
+                            <button type="submit" asp-page-handler="TestPendingChanges" class="btn btn-warning btn-block">
+                                <i class="fas fa-edit mr-1"></i> Test Pending Changes Query
+                            </button>
+                        </form>
+
+                        <form method="post" class="mb-3">
+                            <div class="input-group mb-2">
+                                <input type="number" name="channelId" value="1" class="form-control" placeholder="Channel ID">
+                                <div class="input-group-append">
+                                    <button type="submit" asp-page-handler="TestAccountRemoval" class="btn btn-danger">
+                                        <i class="fas fa-trash mr-1"></i> Test Account Removal Query
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted">This only tests the query, doesn't actually remove accounts</small>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

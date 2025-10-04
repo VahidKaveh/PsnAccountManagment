@@ -3,268 +3,196 @@
 @{
     ViewData["Title"] = "Dashboard";
 }
-<!-- Dashboard Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <h1 class="display-4 fw-bold">
-            <i class="bi bi-speedometer2 text-primary"></i> Dashboard
-        </h1>
-        <p class="lead text-muted">Welcome to PSN Account Manager - Real-time Overview</p>
-    </div>
-</div>
 
-<!-- Statistics Cards -->
-<div class="row g-3 mb-4">
-    <!-- Total Accounts -->
-    <div class="col-lg-3 col-md-6">
-        <div class="stat-box bg-gradient-primary">
-            <i class="bi bi-person-vcard icon-bg"></i>
-            <div class="position-relative">
-                <h2>@Model.TotalAccounts</h2>
-                <p>Total Accounts</p>
-                <a asp-page="/Accounts/Index" class="small-box-footer">
-                    View All <i class="bi bi-arrow-right ms-1"></i>
-                </a>
+<!-- Anti-Forgery Token for AJAX Requests -->
+@Html.AntiForgeryToken()
+
+<!-- Content Header (Page header) -->
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0">
+                    <i class="fas fa-tachometer-alt text-primary mr-2"></i>Dashboard
+                </h1>
             </div>
-        </div>
-    </div>
-
-    <!-- Active Accounts -->
-    <div class="col-lg-3 col-md-6">
-        <div class="stat-box bg-gradient-success">
-            <i class="bi bi-check-circle-fill icon-bg"></i>
-            <div class="position-relative">
-                <h2>@Model.ActiveAccounts</h2>
-                <p>Active (In Stock)</p>
-                <a asp-page="/Accounts/Index" class="small-box-footer">
-                    View Active <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Total Games -->
-    <div class="col-lg-3 col-md-6">
-        <div class="stat-box bg-gradient-warning">
-            <i class="bi bi-controller icon-bg"></i>
-            <div class="position-relative">
-                <h2>@Model.TotalGames</h2>
-                <p>Games in Library</p>
-                <a asp-page="/Games/Index" class="small-box-footer">
-                    Browse Games <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Pending Purchases -->
-    <div class="col-lg-3 col-md-6">
-        <div class="stat-box bg-gradient-danger">
-            <i class="bi bi-cart-check-fill icon-bg"></i>
-            <div class="position-relative">
-                <h2>@Model.PendingPurchases</h2>
-                <p>Pending Purchases</p>
-                <a asp-page="/Purchases/Index" class="small-box-footer">
-                    Manage Orders <i class="bi bi-arrow-right ms-1"></i>
-                </a>
+            <div class="col-sm-6">
+                <ol class="breadcrumb float-sm-right">
+                    <li class="breadcrumb-item active">Dashboard</li>
+                </ol>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Main Content Row -->
-<div class="row g-4">
-    <!-- Left Column - Quick Actions -->
-    <div class="col-lg-6">
-        <div class="card dashboard-card border-0">
-            <div class="card-header bg-primary text-white border-0" style="border-radius: 12px 12px 0 0;">
-                <h5 class="mb-0">
-                    <i class="bi bi-lightning-charge-fill me-2"></i>
-                    Quick Actions
-                </h5>
+<!-- Status Message -->
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-info alert-dismissible">
+        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+        <i class="icon fas fa-info mr-2"></i>@Model.StatusMessage
+    </div>
+}
+
+<!-- Main content -->
+<div class="content">
+    <div class="container-fluid">
+        <!-- Statistics Cards Row -->
+        <div class="row">
+            <!-- Total Accounts -->
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-info">
+                    <div class="inner">
+                        <h3 id="total-accounts">@Model.TotalAccounts</h3>
+                        <p>Total Accounts</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <a asp-page="/Accounts/Index" class="small-box-footer">
+                        More info <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </div>
             </div>
-            <div class="card-body p-4">
-                <p class="text-muted mb-4">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Quickly access the most common management tasks
-                </p>
-                <div class="d-grid gap-3">
-                    <a asp-page="/Games/Create" class="btn btn-primary btn-lg quick-action-btn">
-                        <i class="bi bi-plus-circle me-2"></i> Add New Game
+
+            <!-- Active Accounts -->
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-success">
+                    <div class="inner">
+                        <h3 id="active-accounts">@Model.ActiveAccounts</h3>
+                        <p>Active (In Stock)</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <a asp-page="/Accounts/Index" class="small-box-footer">
+                        More info <i class="fas fa-arrow-circle-right"></i>
                     </a>
-                    <a asp-page="/Channels/Index" class="btn btn-info btn-lg quick-action-btn">
-                        <i class="bi bi-telegram me-2"></i> Manage Channels
+                </div>
+            </div>
+
+            <!-- Total Games -->
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-warning">
+                    <div class="inner">
+                        <h3 id="total-games">@Model.TotalGames</h3>
+                        <p>Games Library</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-gamepad"></i>
+                    </div>
+                    <a asp-page="/Games/Index" class="small-box-footer">
+                        More info <i class="fas fa-arrow-circle-right"></i>
                     </a>
-                    <a asp-page="/Accounts/Index" class="btn btn-success btn-lg quick-action-btn">
-                        <i class="bi bi-grid-3x3-gap-fill me-2"></i> View All Accounts
-                    </a>
-                    <a asp-page="/Reports/Index" class="btn btn-secondary btn-lg quick-action-btn">
-                        <i class="bi bi-graph-up me-2"></i> View Reports
+                </div>
+            </div>
+
+            <!-- Pending Purchases -->
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-danger">
+                    <div class="inner">
+                        <h3 id="pending-purchases">@Model.PendingPurchases</h3>
+                        <p>Pending Orders</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <a asp-page="/Purchases/Index" class="small-box-footer">
+                        More info <i class="fas fa-arrow-circle-right"></i>
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Activity Card -->
-        <div class="card dashboard-card border-0 mt-4">
-            <div class="card-header bg-info text-white border-0" style="border-radius: 12px 12px 0 0;">
-                <h5 class="mb-0">
-                    <i class="bi bi-clock-history me-2"></i>
-                    Recent Activity
-                </h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    @if (Model.WorkerStatus.MessagesFoundInLastRun > 0)
-                    {
-                        <div class="list-group-item">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-envelope-check text-success fs-4 me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">New Messages Processed</h6>
-                                    <small class="text-muted">
-                                        @Model.WorkerStatus.MessagesFoundInLastRun messages scraped
-                                        @(Model.WorkerStatus.LastRunFinishedAt?.ToLocalTime().ToString("g") ?? "recently")
-                                    </small>
-                                </div>
+        <!-- Main Content Row -->
+        <div class="row">
+            <!-- Left Column - Quick Actions -->
+            <div class="col-md-6">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-bolt mr-2"></i>Quick Actions
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <a asp-page="/Games/Create" class="btn btn-primary btn-block btn-lg">
+                                    <i class="fas fa-plus mr-2"></i> Add New Game
+                                </a>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <a asp-page="/Channels/Index" class="btn btn-info btn-block btn-lg">
+                                    <i class="fab fa-telegram mr-2"></i> Manage Channels
+                                </a>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <a asp-page="/Accounts/Index" class="btn btn-success btn-block btn-lg">
+                                    <i class="fas fa-list mr-2"></i> View All Accounts
+                                </a>
+                            </div>
+                            <div class="col-12">
+                                <a asp-page="/Inbox/Index" class="btn btn-warning btn-block btn-lg">
+                                    <i class="fas fa-inbox mr-2"></i> Process Messages
+                                </a>
                             </div>
                         </div>
-                    }
-                    <div class="list-group-item">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-activity text-primary fs-4 me-3"></i>
-                            <div>
-                                <h6 class="mb-1">System Status</h6>
-                                <small class="text-muted">@Model.WorkerStatus.CurrentActivityMessage</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - System Status -->
+            <div class="col-md-6">
+                <div class="card card-outline" id="scraper-status-card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-server mr-2"></i>Scraper System Status
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Status Badge -->
+                        <div id="status-badge-container" class="text-center mb-4">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+
+                        <!-- Status Details -->
+                        <div class="info-box">
+                            <span class="info-box-icon bg-info"><i class="fas fa-activity"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Current Activity</span>
+                                <span class="info-box-number" id="current-activity">Loading...</span>
+                            </div>
+                        </div>
+
+                        <div class="info-box">
+                            <span class="info-box-icon bg-success"><i class="fas fa-clock"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Last Cycle Finish</span>
+                                <span class="info-box-number" id="last-run-finish">Loading...</span>
+                            </div>
+                        </div>
+
+                        <div class="info-box">
+                            <span class="info-box-icon bg-warning"><i class="fas fa-stopwatch"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Last Duration</span>
+                                <span class="info-box-number" id="last-run-duration">Loading...</span>
+                            </div>
+                        </div>
+
+                        <div class="info-box">
+                            <span class="info-box-icon bg-danger"><i class="fas fa-envelope"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Messages (Last Run)</span>
+                                <span class="info-box-number" id="messages-last-run">Loading...</span>
                             </div>
                         </div>
                     </div>
-                    <div class="list-group-item text-center py-3">
-                        <a asp-page="/Activity/Index" class="text-decoration-none">
-                            View Full Activity Log <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Right Column - System Status -->
-    <div class="col-lg-6">
-        <div class="card dashboard-card border-0">
-            <div class="card-header border-0" style="border-radius: 12px 12px 0 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <h5 class="mb-0 text-white">
-                    <i class="bi bi-hdd-stack-fill me-2"></i>
-                    Scraper System Status
-                </h5>
-            </div>
-            <div class="card-body p-4">
-                <!-- Status Badge -->
-                <div class="text-center mb-4">
-                    @if (Model.WorkerStatus.IsEnabled)
-                    {
-                        <span class="status-badge bg-success text-white animate-pulse">
-                            <i class="bi bi-play-circle-fill"></i>
-                            RUNNING
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="status-badge bg-danger text-white">
-                            <i class="bi bi-stop-circle-fill"></i>
-                            STOPPED
-                        </span>
-                    }
-                </div>
-
-                <!-- Status Details -->
-                <div class="system-status-details">
-                    <div class="system-status-item d-flex justify-content-between">
-                        <span class="system-status-label">
-                            <i class="bi bi-activity text-primary me-2"></i>Current Activity
-                        </span>
-                        <span class="system-status-value">@Model.WorkerStatus.CurrentActivityMessage</span>
-                    </div>
-
-                    <div class="system-status-item d-flex justify-content-between">
-                        <span class="system-status-label">
-                            <i class="bi bi-clock text-info me-2"></i>Last Cycle Finish
-                        </span>
-                        <span class="system-status-value">
-                            @(Model.WorkerStatus.LastRunFinishedAt?.ToLocalTime().ToString("g") ?? "N/A")
-                        </span>
-                    </div>
-
-                    <div class="system-status-item d-flex justify-content-between">
-                        <span class="system-status-label">
-                            <i class="bi bi-stopwatch text-warning me-2"></i>Last Cycle Duration
-                        </span>
-                        <span class="system-status-value">
-                            @(Model.WorkerStatus.LastRunDuration?.ToString(@"m'm 's's'") ?? "N/A")
-                        </span>
-                    </div>
-
-                    <div class="system-status-item d-flex justify-content-between">
-                        <span class="system-status-label">
-                            <i class="bi bi-envelope text-success me-2"></i>Messages (Last Run)
-                        </span>
-                        <span class="system-status-value">
-                            @(Model.WorkerStatus.MessagesFoundInLastRun?.ToString() ?? "N/A")
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Control Footer -->
-            <div class="card-footer border-0 bg-light" style="border-radius: 0 0 12px 12px;">
-                <form method="post" class="d-grid">
-                    @if (Model.WorkerStatus.IsEnabled)
-                    {
-                        <button type="submit" class="btn btn-danger btn-lg" asp-page-handler="StopWorker">
-                            <i class="bi bi-stop-circle-fill me-2"></i> Stop Scraper
-                        </button>
-                    }
-                    else
-                    {
-                        <button type="submit" class="btn btn-success btn-lg" asp-page-handler="StartWorker">
-                            <i class="bi bi-play-circle-fill me-2"></i> Start Scraper
-                        </button>
-                    }
-                </form>
-            </div>
-        </div>
-
-        <!-- System Health Card -->
-        <div class="card dashboard-card border-0 mt-4">
-            <div class="card-header bg-gradient-info text-white border-0" style="border-radius: 12px 12px 0 0;">
-                <h5 class="mb-0">
-                    <i class="bi bi-heart-pulse me-2"></i>
-                    System Health
-                </h5>
-            </div>
-            <div class="card-body p-4">
-                <div class="row text-center">
-                    <div class="col-4">
-                        <div class="p-3">
-                            <i class="bi bi-hdd-fill text-primary fs-1"></i>
-                            <h6 class="mt-2 mb-0">Database</h6>
-                            <span class="badge bg-success mt-1">Online</span>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="p-3">
-                            <i class="bi bi-cpu-fill text-success fs-1"></i>
-                            <h6 class="mt-2 mb-0">API</h6>
-                            <span class="badge bg-success mt-1">Healthy</span>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="p-3">
-                            <i class="bi bi-cloud-check-fill text-info fs-1"></i>
-                            <h6 class="mt-2 mb-0">Worker</h6>
-                            <span class="badge @(Model.WorkerStatus.IsEnabled ? "bg-success" : "bg-secondary") mt-1">
-                                @(Model.WorkerStatus.IsEnabled ? "Active" : "Inactive")
-                            </span>
+                    <!-- Control Footer -->
+                    <div class="card-footer">
+                        <div id="worker-controls">
+                            <!-- Will be populated by JavaScript -->
                         </div>
                     </div>
                 </div>
@@ -273,40 +201,133 @@
     </div>
 </div>
 
-<!-- JavaScript for Dynamic Updates -->
-<script>
-    // Auto-refresh dashboard every 30 seconds
-    let refreshInterval = setInterval(() => {
-        console.log('Dashboard auto-refresh...');
-        // In production, you would use SignalR or AJAX to update stats
-    }, 30000);
 
-    // Add animation on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const cards = document.querySelectorAll('.dashboard-card, .stat-box');
-        cards.forEach((card, index) => {
-            setTimeout(() => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                card.style.transition = 'all 0.5s ease';
+@section Scripts {
+    <!-- SignalR Client Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.5/signalr.min.js"></script>
 
-                setTimeout(() => {
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, 50);
-            }, index * 50);
+    <script>
+        $(document).ready(function() {
+            console.log("Dashboard initializing...");
+
+            // Get initial status from server with safe serialization
+            let initialStatus = null;
+            try {
+                initialStatus = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WorkerStatus, new System.Text.Json.JsonSerializerOptions
+                {
+                        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                }));
+            console.log("Initial status loaded:", initialStatus);
+        } catch (error) {
+            console.error("Failed to parse initial status:", error);
+            initialStatus = {
+                isEnabled: false,
+                currentActivity: "Stopped",
+                currentActivityMessage: "Status unavailable",
+                lastRunFinishedAt: null,
+                lastRunDuration: null,
+                messagesFoundInLastRun: 0
+            };
+        }
+
+            function updateStatusUI(status) {
+                console.log("Updating UI with:", status);
+
+                if (!status) {
+                    console.warn("Status is null, using default");
+                    status = {
+                        isEnabled: false,
+                        currentActivityMessage: "Unknown",
+                        lastRunFinishedAt: null,
+                        lastRunDuration: null,
+                        messagesFoundInLastRun: 0
+                    };
+                }
+
+                // Update badge
+                const badgeHtml = status.isEnabled
+                    ? `<span class="status-badge bg-success text-white animate-pulse"><i class="fas fa-play-circle mr-2"></i>RUNNING</span>`
+                    : `<span class="status-badge bg-danger text-white"><i class="fas fa-stop-circle mr-2"></i>STOPPED</span>`;
+                $('#status-badge-container').html(badgeHtml);
+
+                // Update info boxes
+                $('#current-activity').text(status.currentActivityMessage || 'Unknown');
+                $('#last-run-finish').text(status.lastRunFinishedAt ? new Date(status.lastRunFinishedAt).toLocaleString() : 'Never');
+
+                // Format duration safely
+                let durationText = 'N/A';
+                if (status.lastRunDuration) {
+                    if (typeof status.lastRunDuration === 'string') {
+                        durationText = status.lastRunDuration;
+                    } else if (status.lastRunDuration.totalSeconds) {
+                        const minutes = Math.floor(status.lastRunDuration.totalSeconds / 60);
+                        const seconds = Math.floor(status.lastRunDuration.totalSeconds % 60);
+                        durationText = `${minutes}m ${seconds}s`;
+                    }
+                }
+                $('#last-run-duration').text(durationText);
+                $('#messages-last-run').text(status.messagesFoundInLastRun || '0');
+
+                // Update control button
+                const buttonHtml = status.isEnabled
+                    ? `<button id="stop-worker-btn" class="btn btn-danger btn-block btn-lg"><i class="fas fa-stop-circle mr-2"></i>Stop Scraper</button>`
+                    : `<button id="start-worker-btn" class="btn btn-success btn-block btn-lg"><i class="fas fa-play-circle mr-2"></i>Start Scraper</button>`;
+                $('#worker-controls').html(buttonHtml);
+
+                // Update card color
+                const card = $('#scraper-status-card');
+                card.removeClass('card-outline-success card-outline-danger');
+                card.addClass(status.isEnabled ? 'card-outline-success' : 'card-outline-danger');
+            }
+
+            // Initialize UI immediately
+            updateStatusUI(initialStatus);
+
+            // SignalR connection
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/dashboardHub")
+                .configureLogging(signalR.LogLevel.Warning)
+                .build();
+
+            connection.on("ReceiveStatusUpdate", function(status) {
+                console.log("SignalR update received:", status);
+                updateStatusUI(status);
+            });
+
+            connection.start()
+                .then(() => {
+                    console.log("SignalR connected successfully");
+                })
+                .catch(err => {
+                    console.warn("SignalR connection failed:", err);
+                });
+
+            // Button handlers
+            $(document).on('click', '#stop-worker-btn, #start-worker-btn', function() {
+                const button = $(this);
+                const isStopping = button.attr('id') === 'stop-worker-btn';
+                const handler = isStopping ? 'StopWorker' : 'StartWorker';
+
+                button.prop('disabled', true)
+                    .html(`<i class="fas fa-spinner fa-spin mr-2"></i>${isStopping ? 'Stopping...' : 'Starting...'}`);
+
+                $.ajax({
+                    type: "POST",
+                    url: `?handler=${handler}`,
+                    headers: { "RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val() },
+                    success: function() {
+                        console.log(`${handler} successful`);
+                        // UI will be updated via SignalR
+                    },
+                    error: function(xhr) {
+                        console.error(`${handler} failed:`, xhr);
+                        alert(`Failed to ${isStopping ? 'stop' : 'start'} worker`);
+                        updateStatusUI(initialStatus); // Revert
+                    }
+                });
+            });
         });
-    });
+    </script>
 
-    // Form submission animation
-    document.querySelectorAll('form button[type="submit"]').forEach(button => {
-        button.addEventListener('click', function(e) {
-            const spinner = document.createElement('span');
-            spinner.className = 'spinner-border spinner-border-sm me-2';
-            spinner.setAttribute('role', 'status');
-
-            this.prepend(spinner);
-            this.disabled = true;
-        });
-    });
-</script>
+}

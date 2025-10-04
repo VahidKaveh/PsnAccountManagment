@@ -1,5 +1,5 @@
-﻿using PsnAccountManager.Domain.Entities;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
+using PsnAccountManager.Domain.Entities;
 
 namespace PsnAccountManager.Domain.Interfaces;
 

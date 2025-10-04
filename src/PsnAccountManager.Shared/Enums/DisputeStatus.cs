@@ -1,6 +1,9 @@
-﻿
+﻿namespace PsnAccountManager.Shared.Enums;
 
-namespace PsnAccountManager.Shared.Enums
+public enum DisputeStatus
 {
-    public enum DisputeStatus { Open, UnderReview, Resolved, Closed }
+    Open,
+    UnderReview,
+    Resolved,
+    Closed
 }

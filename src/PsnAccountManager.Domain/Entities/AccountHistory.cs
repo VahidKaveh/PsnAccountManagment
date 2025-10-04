@@ -1,5 +1,4 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PsnAccountManager.Domain.Entities;
 
@@ -12,6 +11,5 @@ public class AccountHistory : BaseEntity<int>
     public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
     public string ChangedBy { get; set; }
 
-    [ForeignKey("AccountId")]
-    public virtual Account Account { get; set; }
+    [ForeignKey("AccountId")] public virtual Account Account { get; set; }
 }

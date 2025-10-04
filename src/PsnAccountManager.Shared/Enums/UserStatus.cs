@@ -1,4 +1,8 @@
-﻿namespace PsnAccountManager.Shared.Enums
+﻿namespace PsnAccountManager.Shared.Enums;
+
+public enum UserStatus
 {
-    public enum UserStatus { Active, Banned, Inactive }
+    Active,
+    Banned,
+    Inactive
 }

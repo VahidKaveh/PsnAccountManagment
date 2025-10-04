@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
-using PsnAccountManager.Domain.Entities;
-using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.DTOs;
 using PsnAccountManager.Shared.Enums;
 using System.Globalization;
@@ -10,411 +8,200 @@ using System.Text.RegularExpressions;
 namespace PsnAccountManager.Infrastructure.Services;
 
 /// <summary>
-/// Enhanced rule-based message parser with machine learning data extraction
-/// Parses messages using regex rules and creates LearningData for training
+/// A simplified, rule-based message parser using pure Regex.
+/// This service is responsible for all text parsing logic.
 /// </summary>
 public class MessageParser : IMessageParser
 {
     private readonly ILogger<MessageParser> _logger;
-    private readonly ILearningDataRepository _learningDataRepository;
 
-    public MessageParser(
-        ILogger<MessageParser> logger,
-        ILearningDataRepository learningDataRepository)
+    // Regex patterns for parsing specific account details
+    private static readonly Regex PricePs4Pattern =
+        new(@"(?:PS4|Price PS4)[:\s]*([\d,]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex PricePs5Pattern =
+        new(@"(?:PS5|Price PS5)[:\s]*([\d,]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RegionPattern =
+        new(@"(?:Region|ریجن)[:\s]*([A-Z]{2,3})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SoldStatusPattern =
+        new(@"(SOLD|فروخته شده)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex GamesBlockStartPattern = new(@"(?:Games|بازی‌ها|لیست بازی‌ها)[:\s]*\n",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+
+    private static readonly Regex GamesBlockEndPattern = new(@"(?:─|Price|قیمت|Region|ریجن)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+
+    private static readonly Regex CapacityPattern = new(
+        @"(?:ظرفیت|Capacity|Zarfiat)[:\s]*\b(Z1|Z2|Z3|1|2|3)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public MessageParser(ILogger<MessageParser> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _learningDataRepository = learningDataRepository ?? throw new ArgumentNullException(nameof(learningDataRepository));
     }
 
     /// <summary>
-    /// Parses a raw message using profile rules and creates learning data
+    /// Parses the message text to extract account details using regex.
     /// </summary>
-    public async Task<ParsedAccountDto?> ParseAsync(
-        string messageText,
-        string externalId,
-        int channelId,
-        int? rawMessageId,
-        ICollection<ParsingProfileRule> rules)
+    public Task<ParsedAccountDto?> ParseAccountMessageAsync(string messageText)
     {
         if (string.IsNullOrWhiteSpace(messageText))
         {
-            _logger.LogWarning("Cannot parse empty message");
-            return null;
+            _logger.LogWarning("Cannot parse an empty or whitespace message.");
+            return Task.FromResult<ParsedAccountDto?>(null);
         }
 
-        string cleanText = RemoveEmojisAndDecorations(messageText);
-
-        var dto = new ParsedAccountDto
+        try
         {
-            ExternalId = externalId,
-            FullDescription = messageText
-        };
+            var cleanText = RemoveEmojisAndDecorations(messageText);
 
-        // Track successful extractions for learning
-        var learningDataList = new List<LearningData>();
-
-        foreach (var rule in rules)
-        {
-            try
+            var dto = new ParsedAccountDto
             {
-                var match = Regex.Match(
-                    cleanText,
-                    rule.RegexPattern,
-                    RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Singleline,
-                    TimeSpan.FromSeconds(2) // Timeout protection
-                );
+                PricePs4 = ParseDecimal(PricePs4Pattern, cleanText),
+                PricePs5 = ParseDecimal(PricePs5Pattern, cleanText),
+                Region = ParseString(RegionPattern, cleanText),
+                IsSold = SoldStatusPattern.IsMatch(cleanText),
+                Capacity = ParseCapacity(cleanText),
+                ExtractedGames = ExtractGameTitles(cleanText),
+                FullDescription = messageText
+            };
 
-                if (!match.Success) continue;
+            // Generate a default title if none is found
+            dto.Title = $"Account with {dto.ExtractedGames.Count} games";
 
-                // The first captured group is usually the desired value
-                string extractedValue = match.Groups.Count > 1
-                    ? match.Groups[1].Value.Trim()
-                    : match.Value.Trim();
-
-                if (string.IsNullOrWhiteSpace(extractedValue))
-                    continue;
-
-                // Apply the rule to DTO
-                ApplyRule(dto, rule.FieldType, extractedValue);
-
-                // Create learning data for this extraction
-                var learningData = CreateLearningData(
-                    channelId,
-                    rawMessageId,
-                    rule.FieldType,
-                    extractedValue,
-                    messageText,
-                    match
-                );
-
-                if (learningData != null)
-                {
-                    learningDataList.Add(learningData);
-                }
-            }
-            catch (RegexMatchTimeoutException ex)
-            {
-                _logger.LogWarning(ex,
-                    "Regex timeout for rule {FieldType} with pattern {Pattern}",
-                    rule.FieldType, rule.RegexPattern);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Error applying rule {FieldType} with pattern {Pattern}",
-                    rule.FieldType, rule.RegexPattern);
-            }
+            return Task.FromResult<ParsedAccountDto?>(dto);
         }
-
-        // Parse games block separately (if present)
-        await ExtractGamesAsync(dto, cleanText, messageText, channelId, rawMessageId: (int)rawMessageId, learningDataList);
-
-        // Save all learning data in one transaction
-        if (learningDataList.Any())
+        catch (Exception ex)
         {
-            try
-            {
-                foreach (var learningData in learningDataList)
-                {
-                    await _learningDataRepository.AddAsync(learningData);
-                }
-                await _learningDataRepository.SaveChangesAsync();
-
-                _logger.LogInformation(
-                    "Created {Count} learning data entries for message {MessageId}",
-                    learningDataList.Count, rawMessageId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to save learning data");
-            }
+            _logger.LogError(ex, "An unexpected error occurred during message parsing.");
+            return Task.FromResult<ParsedAccountDto?>(null);
         }
-
-        return dto;
     }
 
-    /// <summary>
-    /// Synchronous parse method (for backward compatibility)
-    /// </summary>
-    public ParsedAccountDto? Parse(
-        string messageText,
-        string externalId,
-        ICollection<ParsingProfileRule> rules)
+    private List<string> ExtractGameTitles(string text)
     {
-        // Call async version without learning data
-        return ParseAsync(messageText, externalId, 0, null, rules).GetAwaiter().GetResult();
+        var gamesText = text;
+
+        // Isolate the games block
+        var startMatch = GamesBlockStartPattern.Match(text);
+        if (startMatch.Success) gamesText = text.Substring(startMatch.Index + startMatch.Length);
+
+        var endMatch = GamesBlockEndPattern.Match(gamesText);
+        if (endMatch.Success) gamesText = gamesText.Substring(0, endMatch.Index);
+
+        // Extract titles from the block
+        return gamesText
+            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => CleanGameTitle(line))
+            .Where(cleanedLine => IsLikelyGameTitle(cleanedLine))
+            .Distinct()
+            .ToList();
     }
 
-    private void ApplyRule(ParsedAccountDto dto, ParsedFieldType fieldType, string value)
+    private string CleanGameTitle(string title)
     {
-        switch (fieldType)
-        {
-            case ParsedFieldType.PricePs4:
-                dto.PricePs4 = ParseDecimal(value);
-                break;
-
-            case ParsedFieldType.PricePs5:
-                dto.PricePs5 = ParseDecimal(value);
-                break;
-
-            case ParsedFieldType.Region:
-                dto.Region = value;
-                break;
-
-            case ParsedFieldType.OriginalMail:
-                dto.HasOriginalMail = !string.IsNullOrEmpty(value);
-                break;
-
-            case ParsedFieldType.Guarantee:
-                if (int.TryParse(value, out var minutes))
-                    dto.GuaranteeMinutes = minutes;
-                break;
-
-            case ParsedFieldType.SellerInfo:
-                dto.SellerInfo = value;
-                break;
-
-            case ParsedFieldType.SoldStatus:
-                dto.IsSold = !string.IsNullOrEmpty(value);
-                break;
-
-            case ParsedFieldType.Capacity:
-                dto.CapacityInfo = value;
-                break;
-
-            case ParsedFieldType.AdditionalInfo:
-                dto.AdditionalInfo = value;
-                break;
-        }
+        // Remove bullet points, numbers, and trim
+        return Regex.Replace(title, @"^[•\-*\d\.]+\s*", "").Trim();
     }
 
-    /// <summary>
-    /// Extracts game titles from message text
-    /// Supports multiple formats: bullet points, numbered lists, comma-separated
-    /// </summary>
-    private async Task ExtractGamesAsync(
-        ParsedAccountDto dto,
-        string cleanText,
-        string originalText,
-        int channelId,
-        int rawMessageId,
-        List<LearningData> learningDataList)
-    {
-        var gamesList = new List<string>();
-
-        // Pattern 1: Bullet points or dashes
-        var bulletPattern = @"[•\-*]\s*([^\n•\-*]+)";
-        var bulletMatches = Regex.Matches(cleanText, bulletPattern);
-
-        foreach (Match match in bulletMatches)
-        {
-            var game = match.Groups[1].Value.Trim();
-            if (IsLikelyGameTitle(game))
-            {
-                gamesList.Add(game);
-
-                // Create learning data
-                learningDataList.Add(new LearningData
-                {
-                    ChannelId = channelId,
-                    RawMessageId = rawMessageId,
-                    EntityType = "Game",
-                    EntityValue = game,
-                    OriginalText = originalText,
-                    TextContext = GetContext(originalText, game, 50),
-                    ConfidenceLevel = 85, // Bullet points are usually high confidence
-                    IsManualCorrection = false,
-                    IsUsedInTraining = false,
-                    CreatedBy = "system",
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-        }
-
-        // Pattern 2: Numbered lists (1. Game, 2. Game)
-        var numberedPattern = @"\d+\.\s*([^\n\d]+)";
-        var numberedMatches = Regex.Matches(cleanText, numberedPattern);
-
-        foreach (Match match in numberedMatches)
-        {
-            var game = match.Groups[1].Value.Trim();
-            if (IsLikelyGameTitle(game) && !gamesList.Contains(game))
-            {
-                gamesList.Add(game);
-
-                learningDataList.Add(new LearningData
-                {
-                    ChannelId = channelId,
-                    RawMessageId = rawMessageId,
-                    EntityType = "Game",
-                    EntityValue = game,
-                    OriginalText = originalText,
-                    TextContext = GetContext(originalText, game, 50),
-                    ConfidenceLevel = 85,
-                    IsManualCorrection = false,
-                    IsUsedInTraining = false,
-                    CreatedBy = "system",
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-        }
-
-        // Pattern 3: Comma or slash separated
-        if (gamesList.Count == 0)
-        {
-            var separatorPattern = @"([^,/\n]+)";
-            var separatorMatches = Regex.Matches(cleanText, separatorPattern);
-
-            foreach (Match match in separatorMatches)
-            {
-                var game = match.Value.Trim();
-                if (IsLikelyGameTitle(game) && !gamesList.Contains(game) && gamesList.Count < 20)
-                {
-                    gamesList.Add(game);
-
-                    learningDataList.Add(new LearningData
-                    {
-                        ChannelId = channelId,
-                        RawMessageId = rawMessageId,
-                        EntityType = "Game",
-                        EntityValue = game,
-                        OriginalText = originalText,
-                        TextContext = GetContext(originalText, game, 50),
-                        ConfidenceLevel = 60, // Lower confidence for separator-based
-                        IsManualCorrection = false,
-                        IsUsedInTraining = false,
-                        CreatedBy = "system",
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
-            }
-        }
-
-        dto.ExtractedGames = gamesList;
-    }
-
-    /// <summary>
-    /// Checks if a string is likely a game title
-    /// </summary>
     private bool IsLikelyGameTitle(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return false;
-        if (text.Length < 3 || text.Length > 100) return false;
+        if (string.IsNullOrWhiteSpace(text) || text.Length < 3 || text.Length > 100)
+            return false;
 
-        // Exclude common non-game phrases
-        var excludePatterns = new[]
-        {
-            "price", "قیمت", "region", "منطقه", "sold", "فروخته",
-            "ps4", "ps5", "account", "اکانت", "mail", "ایمیل"
-        };
-
-        return !excludePatterns.Any(p => text.Contains(p, StringComparison.OrdinalIgnoreCase));
+        // Avoid lines that are just prices or system names
+        var excludePatterns = new[] { @"^\d+$", @"^(PS4|PS5)$" };
+        return !excludePatterns.Any(p => Regex.IsMatch(text, p, RegexOptions.IgnoreCase));
     }
 
-    /// <summary>
-    /// Creates a LearningData object from a successful extraction
-    /// </summary>
-    private LearningData? CreateLearningData(
-        int channelId,
-        int? rawMessageId,
-        ParsedFieldType fieldType,
-        string extractedValue,
-        string originalText,
-        Match match)
+    private decimal? ParseDecimal(Regex pattern, string text)
     {
-        if (rawMessageId == null) return null;
+        var match = pattern.Match(text);
+        if (!match.Success) return null;
 
-        // Calculate confidence level based on match quality
-        int confidence = CalculateConfidence(match, fieldType);
-
-        // Get surrounding context
-        string context = GetContext(originalText, extractedValue, 50);
-
-        return new LearningData
-        {
-            ChannelId = channelId,
-            RawMessageId = (int)rawMessageId,
-            EntityType = fieldType.ToString(),
-            EntityValue = extractedValue,
-            OriginalText = originalText,
-            TextContext = context,
-            ConfidenceLevel = confidence,
-            IsManualCorrection = false,
-            IsUsedInTraining = false,
-            CreatedBy = "system",
-            CreatedAt = DateTime.UtcNow
-        };
-    }
-
-    /// <summary>
-    /// Calculates confidence level based on match quality
-    /// </summary>
-    private int CalculateConfidence(Match match, ParsedFieldType fieldType)
-    {
-        int baseConfidence = 70;
-
-        // Boost confidence for certain field types
-        if (fieldType == ParsedFieldType.PricePs4 || fieldType == ParsedFieldType.PricePs5)
-        {
-            // Price patterns are usually reliable
-            baseConfidence = 90;
-        }
-        else if (fieldType == ParsedFieldType.Region)
-        {
-            baseConfidence = 85;
-        }
-
-        // Boost if match is exact and clean
-        if (match.Groups.Count > 1 && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
-        {
-            baseConfidence += 5;
-        }
-
-        return Math.Min(baseConfidence, 100);
-    }
-
-    /// <summary>
-    /// Gets surrounding context for an extracted value
-    /// </summary>
-    private string GetContext(string fullText, string extractedValue, int contextLength)
-    {
-        int index = fullText.IndexOf(extractedValue, StringComparison.OrdinalIgnoreCase);
-        if (index < 0) return extractedValue;
-
-        int start = Math.Max(0, index - contextLength);
-        int end = Math.Min(fullText.Length, index + extractedValue.Length + contextLength);
-
-        return fullText.Substring(start, end - start).Trim();
-    }
-
-    /// <summary>
-    /// Safely parses decimal values, removing currency symbols and commas
-    /// </summary>
-    private decimal? ParseDecimal(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-
-        // Remove currency symbols, commas, and non-numeric characters except dots
-        string cleaned = Regex.Replace(value, @"[^\d.]", "");
-
-        if (decimal.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
-        {
-            return result;
-        }
-
+        var cleanedValue = Regex.Replace(match.Groups[1].Value, @"[^\d]", "");
+        if (decimal.TryParse(cleanedValue, out var result)) return result;
         return null;
     }
 
-    /// <summary>
-    /// Removes emojis and decorative characters from text
-    /// </summary>
+    private string? ParseString(Regex pattern, string text)
+    {
+        var match = pattern.Match(text);
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
     private string RemoveEmojisAndDecorations(string text)
     {
-        if (string.IsNullOrEmpty(text)) return text;
-
-        // Remove most emojis and decorative symbols
-        text = Regex.Replace(text, @"\p{Cs}|\p{So}|[🔺✍️🖤➡️📍💳🌑🫧💯❤️🔥🔠✅❌]", "");
-
-        return text.Trim();
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        // This regex removes a wide range of emojis and symbols
+        return Regex.Replace(text, @"\p{Cs}|\p{So}|[^\u0000-\u007F]+", string.Empty).Trim();
     }
+
+    #region Obsolete Methods - Kept for interface compliance if needed, but should be removed
+
+    public Task<List<string>> ExtractGameTitlesAsync(string messageText)
+    {
+        return Task.FromResult(ExtractGameTitles(messageText));
+    }
+
+    public Task<decimal?> ExtractPriceAsync(string messageText, string platform = "PS4")
+    {
+        var pattern = platform.Equals("PS5", StringComparison.OrdinalIgnoreCase) ? PricePs5Pattern : PricePs4Pattern;
+        return Task.FromResult(ParseDecimal(pattern, messageText));
+    }
+
+    public Task<string?> ExtractRegionAsync(string messageText)
+    {
+        return Task.FromResult(ParseString(RegionPattern, messageText));
+    }
+
+    public Task<bool> IsValidAccountMessageAsync(string messageText)
+    {
+        // A basic check: does it contain game or price info?
+        return Task.FromResult(PricePs4Pattern.IsMatch(messageText) || PricePs5Pattern.IsMatch(messageText) ||
+                               GamesBlockStartPattern.IsMatch(messageText));
+    }
+
+    public Task<MessageValidationResult> ValidateMessageAsync(string messageText)
+    {
+        var isValid = IsValidAccountMessageAsync(messageText).Result;
+        return Task.FromResult(new MessageValidationResult
+        {
+            IsValid = isValid,
+            ConfidenceScore = isValid ? 0.9 : 0.1
+        });
+    }
+
+    public Task<bool> UpdateParsingRulesAsync(List<ParsingRuleDto> rules)
+    {
+        // This is now handled internally by Regex patterns, so this method is obsolete.
+        _logger.LogWarning("UpdateParsingRulesAsync is obsolete and has no effect.");
+        return Task.FromResult(true);
+    }
+
+    public Task<List<ParsingRuleDto>> GetParsingRulesAsync()
+    {
+        _logger.LogWarning("GetParsingRulesAsync is obsolete. Parsing rules are now hard-coded Regex patterns.");
+        return Task.FromResult(new List<ParsingRuleDto>());
+    }
+    private AccountCapacity ParseCapacity(string text)
+    {
+        var match = CapacityPattern.Match(text);
+        if (match.Success)
+        {
+            return match.Groups[1].Value.ToLower() switch
+            {
+                "z1" or "1" => AccountCapacity.Z1,
+                "z2" or "2" => AccountCapacity.Z2,
+                "z3" or "3" => AccountCapacity.Z3,
+                _ => AccountCapacity.Unknown
+            };
+        }
+        return AccountCapacity.Unknown; // Default value if not found
+    }
+
+    #endregion
 }

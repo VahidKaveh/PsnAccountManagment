@@ -24,7 +24,6 @@ public class RawMessageConfiguration : IEntityTypeConfiguration<RawMessage>
             .HasConversion<string>();
 
 
-
         builder.Property(m => m.ProcessedAt)
             .IsRequired(false); // Nullable
 

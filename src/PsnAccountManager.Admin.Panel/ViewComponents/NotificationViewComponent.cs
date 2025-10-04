@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PsnAccountManager.Domain.Interfaces;
+
 namespace PsnAccountManager.Admin.Panel.ViewComponents;
 
 public class NotificationViewComponent : ViewComponent

@@ -1,5 +1,7 @@
-﻿using PsnAccountManager.Domain.Entities;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
+using PsnAccountManager.Domain.Entities;
+using PsnAccountManager.Shared.Enums;
+using PsnAccountManager.Shared.ViewModels;
 
 namespace PsnAccountManager.Domain.Interfaces;
 
@@ -8,7 +10,6 @@ namespace PsnAccountManager.Domain.Interfaces;
 /// </summary>
 public interface IAccountRepository : IGenericRepository<Account, int>
 {
-    // ==================== EXISTING METHODS ====================
 
     /// <summary>
     /// Fetches all active (not deleted, in stock) accounts and includes their related games
@@ -36,7 +37,20 @@ public interface IAccountRepository : IGenericRepository<Account, int>
     Task<Account?> GetAccountWithAllDetailsAsync(int accountId);
 
 
-    // ==================== NEW METHODS ====================
+    /// <summary>
+    /// Gets a paginated list of accounts with filtering and sorting options.
+    /// </summary>
+    Task<(List<Account> Accounts, int TotalCount)> GetPagedAccountsAsync(
+        int pageNumber,
+        int pageSize,
+        string? searchTerm,
+        StockStatus? status);
+
+    /// <summary>
+    /// Gets statistics about all accounts in the database.
+    /// </summary>
+    Task<AccountStatsViewModel> GetAccountStatsAsync();
+
 
     /// <summary>
     /// Finds an account by its exact title
@@ -72,4 +86,20 @@ public interface IAccountRepository : IGenericRepository<Account, int>
     /// Gets active account count (not deleted, in stock)
     /// </summary>
     Task<int> GetActiveCountAsync();
+
+    /// <summary>
+    /// Gets all active accounts for a specific channel that haven't been scraped recently
+    /// </summary>
+    Task<IEnumerable<Account>> GetStaleAccountsForChannelAsync(int channelId, DateTime cutoffDate);
+
+    /// <summary>
+    /// Marks accounts as deleted/out of stock if they're not found in current scrape
+    /// </summary>
+    Task MarkAccountsAsRemovedAsync(int channelId, IEnumerable<string> existingExternalIds);
+
+    /// <summary>
+    /// Gets all active accounts for a specific channel
+    /// </summary>
+    Task<IEnumerable<Account>> GetActiveAccountsForChannelAsync(int channelId);
+
 }

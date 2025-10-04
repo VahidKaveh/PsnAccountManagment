@@ -5,117 +5,189 @@
     ViewData["Title"] = "Edit Account";
 }
 
-<div class="card card-primary card-outline">
-    <div class="card-header">
-        <h3 class="card-title">Edit: @Model.AccountVM.Title</h3>
+<form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <input type="hidden" asp-for="AccountVM.Id"/>
+
+    <div class="row">
+        <div class="col-lg-12">
+            <!-- Account Details Card -->
+            <div class="card card-primary card-outline">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-user-edit mr-1"></i>
+                        Edit Account: <span id="account-title-header">@Model.AccountVM.Title</span>
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="form-group mb-3">
+                                <label asp-for="AccountVM.Title"><i class="fas fa-tag mr-1"></i>Title</label>
+                                <input asp-for="AccountVM.Title" class="form-control"/>
+                                <span asp-validation-for="AccountVM.Title" class="text-danger"></span>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 form-group mb-3">
+                                    <label asp-for="AccountVM.PricePs4"><i class="fab fa-playstation mr-1"></i>Price PS4</label>
+                                    <input asp-for="AccountVM.PricePs4" class="form-control"/>
+                                    <span asp-validation-for="AccountVM.PricePs4" class="text-danger"></span>
+                                </div>
+                                <div class="col-md-6 form-group mb-3">
+                                    <label asp-for="AccountVM.PricePs5"><i class="fab fa-playstation mr-1"></i>Price PS5</label>
+                                    <input asp-for="AccountVM.PricePs5" class="form-control"/>
+                                    <span asp-validation-for="AccountVM.PricePs5" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 form-group mb-3">
+                                    <label asp-for="AccountVM.Region"><i class="fas fa-globe mr-1"></i>Region</label>
+                                    <input asp-for="AccountVM.Region" class="form-control"/>
+                                    <span asp-validation-for="AccountVM.Region" class="text-danger"></span>
+                                </div>
+                                <div class="col-md-6 form-group mb-3">
+                                    <label asp-for="AccountVM.Capacity"><i class="fas fa-hdd mr-1"></i>Capacity</label>
+                                    <select asp-for="AccountVM.Capacity" asp-items="Html.GetEnumSelectList<AccountCapacity>()" class="form-control"></select>
+                                    <span asp-validation-for="AccountVM.Capacity" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label asp-for="AccountVM.SellerInfo"><i class="fas fa-user-tie mr-1"></i>Seller Info</label>
+                                <input asp-for="AccountVM.SellerInfo" class="form-control"/>
+                                <span asp-validation-for="AccountVM.SellerInfo" class="text-danger"></span>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label asp-for="AccountVM.AdditionalInfo"><i class="fas fa-info-circle mr-1"></i>Additional Info</label>
+                                <textarea asp-for="AccountVM.AdditionalInfo" class="form-control" rows="2"></textarea>
+                                <span asp-validation-for="AccountVM.AdditionalInfo" class="text-danger"></span>
+                            </div>
+                            <div class="row align-items-center">
+                                <div class="col-md-6 form-group mb-3">
+                                    <label asp-for="AccountVM.StockStatus"><i class="fas fa-boxes mr-1"></i>Stock Status</label>
+                                    <select asp-for="AccountVM.StockStatus" asp-items="Html.GetEnumSelectList<StockStatus>()" class="form-control"></select>
+                                    <span asp-validation-for="AccountVM.StockStatus" class="text-danger"></span>
+                                </div>
+                                <div class="col-md-6 form-group form-check mb-3 align-self-end">
+                                    <input type="checkbox" asp-for="AccountVM.HasOriginalMail" class="form-check-input"/>
+                                    <label class="form-check-label" asp-for="AccountVM.HasOriginalMail"></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <!-- Games Section -->
+                            <div class="form-group">
+                                <label><i class="fas fa-gamepad mr-1"></i>Associated Games (<span id="games-count">@Model.AccountVM.GameTitles.Count</span>)</label>
+                                <ul class="list-group" id="games-list" style="max-height: 350px; overflow-y: auto;">
+                                    @if (Model.AccountVM.GameTitles.Any())
+                                    {
+                                        @foreach (var gameTitle in Model.AccountVM.GameTitles)
+                                        {
+                                            <li class="list-group-item d-flex justify-content-between align-items-center p-2">
+                                                <input disabled="true" type="text" class="form-control form-control-sm game-title-input" value="@gameTitle"/>
+                                                <button type="button" class="btn btn-sm btn-danger delete-game-btn ml-2" title="Remove game">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </li>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <li class="list-group-item text-muted text-center" id="no-games-msg">No games associated.</li>
+                                    }
+                                </ul>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-game-btn"><i class="fas fa-plus"></i> Add Game</button>
+                                <input type="hidden" asp-for="AccountVM.GameTitlesJson" id="game-titles-json"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <form method="post">
-        <input type="hidden" asp-for="AccountVM.Id" />
-        <div class="card-body">
-            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-            <div class="form-group mb-3">
-                <label asp-for="AccountVM.Title"></label>
-                <input asp-for="AccountVM.Title" class="form-control" />
-                <span asp-validation-for="AccountVM.Title" class="text-danger"></span>
-            </div>
-
-            <div class="row">
-                <div class="col-md-6 form-group mb-3">
-                    <label asp-for="AccountVM.PricePs4"></label>
-                    <input asp-for="AccountVM.PricePs4" class="form-control" />
-                    <span asp-validation-for="AccountVM.PricePs4" class="text-danger"></span>
-                </div>
-                <div class="col-md-6 form-group mb-3">
-                    <label asp-for="AccountVM.PricePs5"></label>
-                    <input asp-for="AccountVM.PricePs5" class="form-control" />
-                    <span asp-validation-for="AccountVM.PricePs5" class="text-danger"></span>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-6 form-group mb-3">
-                    <label asp-for="AccountVM.Region"></label>
-                    <input asp-for="AccountVM.Region" class="form-control" />
-                    <span asp-validation-for="AccountVM.Region" class="text-danger"></span>
-                </div>
-                <div class="col-md-6 form-group mb-3">
-                    <label asp-for="AccountVM.Capacity"></label>
-                    <select asp-for="AccountVM.Capacity" asp-items="Html.GetEnumSelectList<AccountCapacity>()" class="form-control"></select>
-                    <span asp-validation-for="AccountVM.Capacity" class="text-danger"></span>
-                </div>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="AccountVM.StockStatus"></label>
-                <select asp-for="AccountVM.StockStatus" asp-items="Html.GetEnumSelectList<StockStatus>()" class="form-control"></select>
-                <span asp-validation-for="AccountVM.StockStatus" class="text-danger"></span>
-            </div>
-
-            <div class="form-group form-check mb-3">
-                <input type="checkbox" asp-for="AccountVM.HasOriginalMail" class="form-check-input" />
-                <label class="form-check-label" asp-for="AccountVM.HasOriginalMail"></label>
-            </div>
-
-            <div class="form-group mb-3">
-                <label asp-for="AccountVM.AdditionalInfo"></label>
-                <textarea asp-for="AccountVM.AdditionalInfo" class="form-control" rows="3"></textarea>
-                <span asp-validation-for="AccountVM.AdditionalInfo" class="text-danger"></span>
-            </div>
-
-            <hr />
-
-            <div class="form-group mb-3">
-                <label asp-for="AccountVM.SelectedGameIds"></label>
-                <select asp-for="AccountVM.SelectedGameIds" asp-items="Model.AllGames" class="form-control select2" multiple="multiple"></select>
-                <span asp-validation-for="AccountVM.SelectedGameIds" class="text-danger"></span>
-            </div>
-
-        </div>
-        <div class="card-footer">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a asp-page="./Details" asp-route-id="@Model.AccountVM.Id" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
-</div>
+    <div class="card-footer bg-white border-top mt-3">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i>Save Changes</button>
+        <a asp-page="./Details" asp-route-id="@Model.AccountVM.Id" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
 
 @section Scripts {
     @{
         await Html.RenderPartialAsync("_ValidationScriptsPartial");
     }
-    <!-- Select2 CSS & JS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ttskch/select2-bootstrap4-theme@x.x.x/dist/select2-bootstrap4.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <script>
         $(document).ready(function() {
-            var select2Games = $('.select2');
+            function updateGameCount() {
+                const count = $('#games-list .game-title-input').length;
+                $('#games-count').text(count);
 
-            select2Games.select2({
-                placeholder: "Select games...",
-                allowClear: true,
-                theme: "bootstrap4" // Using the correct theme for AdminLTE v3.2
-            });
+                if (count === 0) {
+                    if ($('#no-games-msg').length === 0) {
+                        $('#games-list').html('<li class="list-group-item text-muted text-center" id="no-games-msg">No games associated.</li>');
+                    }
+                } else {
+                    $('#no-games-msg').remove();
+                }
+
+                updateAccountTitle();
+                updateHiddenJsonField();
+            }
 
             function updateAccountTitle() {
                 const titleInput = $('input[name="AccountVM.Title"]');
-                const originalTitle = titleInput.val();
-                if (typeof originalTitle !== 'string') return;
+                const headerTitle = $('#account-title-header');
+                let currentTitle = titleInput.val();
 
-                const gameCount = select2Games.select2('data').length;
-                const titleBase = originalTitle.replace(/\s*\(\d+\s*Games\)$/i, '').trim();
-                const newTitle = `${titleBase} (${gameCount} Games)`;
+                // **FIX:** Always base the new title on the original title without the game count.
+                const titleBase = currentTitle.replace(/\s*-\s*\d+\s*Games/i, '').trim();
+
+                const gameCount = $('#games-list .game-title-input').length;
+                let newTitle = titleBase;
+
+                if (gameCount > 0) {
+                    newTitle = `${titleBase} - ${gameCount} Games`;
+                }
 
                 titleInput.val(newTitle);
-                $('.card-header h3').text('Edit: ' + newTitle);
+                headerTitle.text(newTitle);
             }
 
-            select2Games.on('change', function() {
-                updateAccountTitle();
+            function updateHiddenJsonField() {
+                const gameTitles = [];
+                $('#games-list .game-title-input').each(function() {
+                    const title = $(this).val().trim();
+                    if (title) {
+                        gameTitles.push(title);
+                    }
+                });
+                $('#game-titles-json').val(JSON.stringify(gameTitles));
+            }
+
+            // Event handler for deleting a game
+            $(document).on('click', '.delete-game-btn', function() {
+                $(this).closest('li').remove();
+                updateGameCount();
             });
 
-            // A small delay to ensure Select2 has initialized before the first title update
-            setTimeout(updateAccountTitle, 200);
+            // Event handler for adding a new game
+            $('#add-game-btn').on('click', function() {
+                const newItem = `
+                    <li class="list-group-item d-flex justify-content-between align-items-center p-2">
+                        <input type="text" class="form-control form-control-sm game-title-input" placeholder="Enter game title" />
+                        <button type="button" class="btn btn-sm btn-danger delete-game-btn ml-2" title="Remove game"><i class="fas fa-times"></i></button>
+                    </li>`;
+                $('#games-list').append(newItem);
+                updateGameCount();
+            });
+
+            // Update game count whenever a title is changed
+            $(document).on('input', '.game-title-input', function() {
+                updateHiddenJsonField();
+            });
+
+            // Initial setup
+            updateHiddenJsonField();
         });
     </script>
 }

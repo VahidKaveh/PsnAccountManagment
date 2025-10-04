@@ -51,4 +51,5 @@ public class AccountDto
 
     // Games Collection
     public List<GameDto> Games { get; set; } = new();
+    public string? AdditionalInfo { get; set; }
 }

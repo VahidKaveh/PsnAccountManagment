@@ -1,5 +1,5 @@
-﻿using PsnAccountManager.Shared.DTOs;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using PsnAccountManager.Shared.DTOs;
 
 namespace PsnAccountManager.Application.Interfaces;
 

@@ -70,6 +70,10 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<DateTime>("LastScrapedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
                     b.Property<decimal?>("PricePs4")
                         .HasColumnType("decimal(18, 2)");
 
@@ -210,17 +214,43 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<bool>("IsRead")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("LinkUrl")
-                        .HasColumnType("longtext");
-
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("Metadata")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("RelatedEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -265,8 +295,8 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("last_scraped_at");
 
-                    b.Property<int?>("LastScrapedMessageId")
-                        .HasColumnType("int")
+                    b.Property<string>("LastScrapedMessageId")
+                        .HasColumnType("longtext")
                         .HasColumnName("last_scraped_message_id");
 
                     b.Property<string>("Name")
@@ -451,87 +481,6 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Guides", (string)null);
-                });
-
-            modelBuilder.Entity("PsnAccountManager.Domain.Entities.LearningData", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ChannelId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ConfidenceLevel")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime(6)")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("EntityType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("EntityValue")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<bool>("IsManualCorrection")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsUsedInTraining")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("OriginalText")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("RawMessageId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("RawMessageId1")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TextContext")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("longtext");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChannelId");
-
-                    b.HasIndex("EntityType");
-
-                    b.HasIndex("IsManualCorrection");
-
-                    b.HasIndex("IsUsedInTraining");
-
-                    b.HasIndex("RawMessageId");
-
-                    b.HasIndex("RawMessageId1");
-
-                    b.HasIndex("ChannelId", "EntityType");
-
-                    b.ToTable("LearningData", (string)null);
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.ParsingProfile", b =>
@@ -767,8 +716,16 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<int?>("AccountId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ChangeDetails")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
                     b.Property<int>("ChannelId")
                         .HasColumnType("int");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -779,9 +736,15 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Property<long>("ExternalMessageId")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("IsChange")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("MessageText")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("PreviousMessageId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime(6)");
@@ -806,6 +769,8 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AccountId");
+
+                    b.HasIndex("PreviousMessageId");
 
                     b.HasIndex("ProcessedAt");
 
@@ -1073,29 +1038,6 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Navigation("RaisedBy");
                 });
 
-            modelBuilder.Entity("PsnAccountManager.Domain.Entities.LearningData", b =>
-                {
-                    b.HasOne("PsnAccountManager.Domain.Entities.Channel", "Channel")
-                        .WithMany("LearningData")
-                        .HasForeignKey("ChannelId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", "RawMessage")
-                        .WithMany()
-                        .HasForeignKey("RawMessageId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", null)
-                        .WithMany("LearningData")
-                        .HasForeignKey("RawMessageId1");
-
-                    b.Navigation("Channel");
-
-                    b.Navigation("RawMessage");
-                });
-
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.ParsingProfileRule", b =>
                 {
                     b.HasOne("PsnAccountManager.Domain.Entities.ParsingProfile", "Profile")
@@ -1184,9 +1126,15 @@ namespace PsnAccountManager.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PsnAccountManager.Domain.Entities.RawMessage", "PreviousMessage")
+                        .WithMany()
+                        .HasForeignKey("PreviousMessageId");
+
                     b.Navigation("Account");
 
                     b.Navigation("Channel");
+
+                    b.Navigation("PreviousMessage");
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.Request", b =>
@@ -1251,8 +1199,6 @@ namespace PsnAccountManager.Infrastructure.Migrations
                 {
                     b.Navigation("Accounts");
 
-                    b.Navigation("LearningData");
-
                     b.Navigation("RawMessages");
 
                     b.Navigation("Sales");
@@ -1277,11 +1223,6 @@ namespace PsnAccountManager.Infrastructure.Migrations
                     b.Navigation("Disputes");
 
                     b.Navigation("Payments");
-                });
-
-            modelBuilder.Entity("PsnAccountManager.Domain.Entities.RawMessage", b =>
-                {
-                    b.Navigation("LearningData");
                 });
 
             modelBuilder.Entity("PsnAccountManager.Domain.Entities.Request", b =>

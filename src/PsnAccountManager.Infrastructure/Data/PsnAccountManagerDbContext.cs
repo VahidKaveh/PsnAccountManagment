@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PsnAccountManager.Domain.Entities;
+using PsnAccountManager.Shared.Enums;
 using System.Reflection;
 
 namespace PsnAccountManager.Infrastructure.Data;
@@ -26,9 +28,16 @@ public class PsnAccountManagerDbContext(DbContextOptions<PsnAccountManagerDbCont
     public DbSet<RawMessage> RawMessages { get; set; }
     public DbSet<AccountHistory> AccountHistories { get; set; }
     public DbSet<AdminNotification> AdminNotifications { get; set; }
-
-
-    public DbSet<LearningData> LearningData { get; set; }
+    private static AccountCapacity ToAccountCapacity(string value)
+    {
+        return value.ToLower() switch
+        {
+            "offline" or "offlineonly" or "z1" => AccountCapacity.Z1,
+            "primary" or "z2" => AccountCapacity.Z2,
+            "secondary" or "z3" => AccountCapacity.Z3,
+            _ => AccountCapacity.Unknown
+        };
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,5 +53,19 @@ public class PsnAccountManagerDbContext(DbContextOptions<PsnAccountManagerDbCont
             new Setting { Key = "Matcher.SuggestionSortOrder", Value = "ByMatchedGames" },
             new Setting { Key = "ScraperWorker.ScrapeIntervalMinutes", Value = "15" }
         );
+
+        var capacityConverter = new ValueConverter<AccountCapacity, string>(
+            // Convert Enum to string for storing in DB
+            v => v.ToString(),
+            // Convert string from DB to Enum
+            v => ToAccountCapacity(v)
+        );
+
+        modelBuilder
+            .Entity<Account>()
+            .Property(e => e.Capacity)
+            .HasConversion(capacityConverter);
+        // **END: Add this ValueConverter**
     }
 }
+  

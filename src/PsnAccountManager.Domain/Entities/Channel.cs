@@ -12,7 +12,7 @@ public class Channel : BaseEntity<int>
 
     public ChannelStatus Status { get; set; }
     public DateTime? LastScrapedAt { get; set; }
-    public int? LastScrapedMessageId { get; set; }
+    public string? LastScrapedMessageId { get; set; }
     public int? ParsingProfileId { get; set; }
 
     // Scraper Configuration
@@ -25,5 +25,4 @@ public class Channel : BaseEntity<int>
     public virtual ICollection<Account> Accounts { get; set; } = new List<Account>();
     public virtual ICollection<Purchase> Sales { get; set; } = new List<Purchase>();
     public virtual ICollection<RawMessage> RawMessages { get; set; } = new List<RawMessage>();
-    public virtual ICollection<LearningData> LearningData { get; set; } = new List<LearningData>();
 }

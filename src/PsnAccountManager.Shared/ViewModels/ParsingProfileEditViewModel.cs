@@ -1,6 +1,6 @@
-﻿using PsnAccountManager.Shared.Enums;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Shared.ViewModels;
 

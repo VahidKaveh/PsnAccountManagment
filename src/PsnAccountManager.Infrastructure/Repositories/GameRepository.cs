@@ -114,10 +114,7 @@ public class GameRepository : GenericRepository<Game, int>, IGameRepository
                 .Select(t => t.Trim().ToLower())
                 .ToList();
 
-            if (!trimmedTitles.Any())
-            {
-                return Enumerable.Empty<Game>();
-            }
+            if (!trimmedTitles.Any()) return Enumerable.Empty<Game>();
 
             return await DbSet
                 .AsNoTracking()

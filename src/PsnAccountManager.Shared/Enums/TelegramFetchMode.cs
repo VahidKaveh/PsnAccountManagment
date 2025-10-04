@@ -16,12 +16,10 @@ public enum TelegramFetchMode
     /// <summary>
     /// Fetch the last X number of messages
     /// </summary>
-    [Display(Name = "Last X Messages")]
-    LastXMessages = 1,
+    [Display(Name = "Last X Messages")] LastXMessages = 1,
 
     /// <summary>
     /// Fetch messages from the last X hours
     /// </summary>
-    [Display(Name = "Since X Hours Ago")]
-    SinceXHoursAgo = 2
+    [Display(Name = "Since X Hours Ago")] SinceXHoursAgo = 2
 }

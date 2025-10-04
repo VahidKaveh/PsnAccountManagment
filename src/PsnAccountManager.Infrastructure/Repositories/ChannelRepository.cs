@@ -46,7 +46,7 @@ public class ChannelRepository : GenericRepository<Channel, int>, IChannelReposi
         {
             return await DbSet
                 .Include(c => c.ParsingProfile)
-                    .ThenInclude(p => p.Rules)
+                .ThenInclude(p => p.Rules)
                 .FirstOrDefaultAsync(c => c.Id == channelId);
         }
         catch (Exception ex)
@@ -68,12 +68,11 @@ public class ChannelRepository : GenericRepository<Channel, int>, IChannelReposi
         {
             return await DbSet
                 .Include(c => c.ParsingProfile)
-                    .ThenInclude(p => p.Rules)
+                .ThenInclude(p => p.Rules)
                 .Include(c => c.Accounts)
-                    .ThenInclude(a => a.AccountGames)
-                        .ThenInclude(ag => ag.Game)
+                .ThenInclude(a => a.AccountGames)
+                .ThenInclude(ag => ag.Game)
                 .Include(c => c.RawMessages)
-                .Include(c => c.LearningData)
                 .AsSplitQuery() // Use split query for better performance with multiple collections
                 .FirstOrDefaultAsync(c => c.Id == channelId);
         }
@@ -114,24 +113,6 @@ public class ChannelRepository : GenericRepository<Channel, int>, IChannelReposi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting account count for channel {ChannelId}", channelId);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Gets learning data count for a specific channel
-    /// Useful for tracking ML training progress per channel
-    /// </summary>
-    public async Task<int> GetLearningDataCountAsync(int channelId)
-    {
-        try
-        {
-            return await Context.Set<LearningData>()
-                .CountAsync(ld => ld.ChannelId == channelId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting learning data count for channel {ChannelId}", channelId);
             throw;
         }
     }

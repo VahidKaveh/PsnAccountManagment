@@ -1,4 +1,5 @@
 ﻿using PsnAccountManager.Domain.Entities;
+
 namespace PsnAccountManager.Domain.Interfaces;
 
 public interface IGuideRepository : IGenericRepository<Guide, int>

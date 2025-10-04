@@ -1,6 +1,9 @@
-﻿
+﻿namespace PsnAccountManager.Shared.Enums;
 
-namespace PsnAccountManager.Shared.Enums
+public enum PurchaseStatus
 {
-    public enum PurchaseStatus { Pending, Completed, Failed, Refunded }
+    Pending,
+    Completed,
+    Failed,
+    Refunded
 }

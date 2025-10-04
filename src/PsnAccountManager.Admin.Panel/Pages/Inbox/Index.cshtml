@@ -19,62 +19,193 @@
 <div class="row">
     <div class="col-12">
         <div class="card card-primary card-outline">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-inbox mr-1"></i>
-                    Pending Messages (@Model.TotalPendingMessages)
-                </h3>
-                <div class="card-tools">
-                    <button type="button" class="btn btn-tool" data-toggle="modal" data-target="#helpModal" title="Interactive Parsing Help">
-                        <i class="fas fa-question-circle text-info"></i>
-                    </button>
-                </div>
+            <!-- Tab Headers -->
+            <div class="card-header p-0 pt-1">
+                <ul class="nav nav-tabs" id="inbox-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link @(Model.ActiveTab == "messages" ? "active" : "")"
+                           href="?tab=messages">
+                            <i class="fas fa-envelope mr-1"></i>
+                            Messages
+                            @if (Model.TotalPendingMessages > 0)
+                            {
+                                <span class="badge badge-warning ml-1">@Model.TotalPendingMessages</span>
+                            }
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(Model.ActiveTab == "changes" ? "active" : "")"
+                           href="?tab=changes">
+                            <i class="fas fa-edit mr-1"></i>
+                            Changes
+                            @if (Model.TotalPendingChanges > 0)
+                            {
+                                <span class="badge badge-danger ml-1">@Model.TotalPendingChanges</span>
+                            }
+                        </a>
+                    </li>
+                </ul>
             </div>
+
+            <!-- Tab Content -->
             <div class="card-body p-0">
-                @if (Model.Messages != null && Model.Messages.Any())
+                @if (Model.ActiveTab == "changes")
                 {
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped">
-                            <tbody>
-                                @foreach (var msg in Model.Messages)
-                                {
-                                    <tr>
-                                        <td class="col-2 align-middle">
-                                            <strong>Channel:</strong> <span>@(msg.Channel?.Name ?? "N/A")</span><br />
-                                            <small class="text-muted">Received: @msg.ReceivedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
-                                        </td>
-                                        <td class="col-8">
-                                            <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 0.9rem;">@msg.MessageText</pre>
-                                        </td>
-                                        <td class="col-2 text-right align-middle">
-                                            <button class="btn btn-sm btn-success w-100 mb-2 process-btn" data-message-id="@msg.Id">
-                                                <i class="fas fa-cogs"></i> Process
-                                            </button>
-                                            <button class="btn btn-sm btn-info w-100 mb-2 interactive-parse-btn" data-message-id="@msg.Id">
-                                                <i class="fas fa-magic"></i> Interactive Parse
-                                            </button>
-                                            <form method="post" class="d-inline w-100">
-                                                @Html.AntiForgeryToken()
-                                                <button type="submit" asp-page-handler="Ignore" asp-route-id="@msg.Id" class="btn btn-sm btn-warning w-100"
-                                                        onclick="return confirm('Are you sure you want to ignore this message?');">
-                                                    <i class="fas fa-eye-slash"></i> Ignore
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    <!-- Changes Tab -->
+                    @if (Model.PendingChanges != null && Model.PendingChanges.Any())
+                    {
+                        <div class="alert alert-info m-3">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <strong>Account Changes Detected (@Model.TotalPendingChanges):</strong> These changes were automatically detected and require your review before processing.
+                        </div>
+
+                        @foreach (var change in Model.PendingChanges)
+                        {
+                            var changeDetails = Model.GetChangeDetails(change);
+
+                            <div class="card card-outline m-3 mb-3">
+                                <div class="card-header">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6 class="card-title mb-0">
+                                                <i class="fas fa-exchange-alt text-warning mr-2"></i>
+                                                Change Detected in <strong>@(change.Channel?.Name ?? "Unknown Channel")</strong>
+                                            </h6>
+                                            <small class="text-muted">External ID: @change.ExternalMessageId</small>
+                                        </div>
+                                        <div class="col-md-4 text-right">
+                                            @if (changeDetails != null)
+                                            {
+                                                <span class="badge @Model.GetChangeTypeBadgeClass(changeDetails.ChangeType) mr-2">
+                                                    @changeDetails.ChangeType
+                                                </span>
+                                            }
+                                            <br />
+                                            <small class="text-muted">@change.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            @if (changeDetails != null && changeDetails.HasChanges)
+                                            {
+                                                <h6><i class="fas fa-list mr-1"></i>Changes Detected:</h6>
+                                                <ul class="list-unstyled mb-3">
+                                                    @foreach (var fieldChange in changeDetails.Changes.Take(5))
+                                                    {
+                                                        <li class="mb-1">
+                                                            <strong>@fieldChange.Field:</strong>
+                                                            <span class="text-muted">@(fieldChange.OldValue ?? "N/A")</span>
+                                                            <i class="fas fa-arrow-right mx-2 text-info"></i>
+                                                            <span class="text-success">@(fieldChange.NewValue ?? "N/A")</span>
+                                                        </li>
+                                                    }
+                                                    @if (changeDetails.Changes.Count > 5)
+                                                    {
+                                                        <li class="text-muted">... and @(changeDetails.Changes.Count - 5) more changes</li>
+                                                    }
+                                                </ul>
+                                            }
+
+                                            <div class="mt-3">
+                                                <h6><i class="fas fa-file-alt mr-1"></i>Message Preview:</h6>
+                                                <div class="bg-light p-2 rounded" style="max-height: 100px; overflow-y: auto;">
+                                                    <small>@change.MessageText.Substring(0, Math.Min(change.MessageText.Length, 200))...</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="text-center">
+                                                <h6>Actions:</h6>
+                                                <form method="post" class="d-inline w-100 mb-2">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="messageId" value="@change.Id" />
+                                                    <button type="submit" asp-page-handler="ApproveChange"
+                                                            class="btn btn-success btn-sm btn-block"
+                                                            onclick="return confirm('Approve this change for processing?')">
+                                                        <i class="fas fa-check mr-1"></i> Approve & Process
+                                                    </button>
+                                                </form>
+                                                <form method="post" class="d-inline w-100 mb-2">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="messageId" value="@change.Id" />
+                                                    <button type="submit" asp-page-handler="IgnoreChange"
+                                                            class="btn btn-secondary btn-sm btn-block"
+                                                            onclick="return confirm('Ignore this change?')">
+                                                        <i class="fas fa-times mr-1"></i> Ignore Change
+                                                    </button>
+                                                </form>
+                                                <a href="/Admin/Messages/@change.Id" class="btn btn-outline-info btn-sm btn-block">
+                                                    <i class="fas fa-eye mr-1"></i> View Details
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                            <h5>No Changes Pending Review</h5>
+                            <p>All detected changes have been processed or there are no changes detected yet.</p>
+                        </div>
+                    }
                 }
                 else
                 {
-                    <div class="p-4 text-center text-muted">
-                        <h5><i class="fas fa-check-circle"></i> Inbox Zero!</h5>
-                        <p>There are no pending messages to review.</p>
-                    </div>
+                    <!-- Messages Tab -->
+                    @if (Model.Messages != null && Model.Messages.Any())
+                    {
+                        <div class="alert alert-info m-3">
+                            <i class="fas fa-inbox mr-2"></i>
+                            <strong>Pending Messages (@Model.TotalPendingMessages):</strong> These messages are waiting to be processed.
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <tbody>
+                                    @foreach (var msg in Model.Messages)
+                                    {
+                                        <tr>
+                                            <td class="col-2 align-middle">
+                                                <strong>Channel:</strong> <span class="channel-name" data-channel-id="@msg.ChannelId">@(msg.Channel?.Name ?? "N/A")</span><br />
+                                                <small class="text-muted">Received: @msg.ReceivedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                            </td>
+                                            <td class="col-8">
+                                                <pre class="mb-0" style="white-space: pre-wrap; font-size: 0.9rem;">@msg.MessageText</pre>
+                                            </td>
+                                            <td class="col-2 text-right align-middle">
+                                                <button class="btn btn-sm btn-success w-100 mb-2 process-btn" data-message-id="@msg.Id" data-channel-name="@(msg.Channel?.Name ?? "N/A")">
+                                                    <i class="fas fa-cogs"></i> Process
+                                                </button>
+                                                <form method="post" class="d-inline w-100">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" asp-page-handler="Ignore" asp-route-id="@msg.Id" class="btn btn-sm btn-warning w-100" onclick="return confirm('Are you sure you want to ignore this message?');">
+                                                        <i class="fas fa-eye-slash"></i> Ignore
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <h5><i class="fas fa-check-circle"></i> Inbox Zero!</h5>
+                            <p>There are no pending messages to review.</p>
+                        </div>
+                    }
                 }
             </div>
+
+            <!-- Pagination -->
             @if (Model.TotalPages > 1)
             {
                 <div class="card-footer clearfix">
@@ -82,7 +213,7 @@
                         @for (var i = 1; i <= Model.TotalPages; i++)
                         {
                             <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                                <a asp-page="./Index" asp-route-CurrentPage="@i" class="page-link">@i</a>
+                                <a asp-page="./Index" asp-route-tab="@Model.ActiveTab" asp-route-CurrentPage="@i" class="page-link">@i</a>
                             </li>
                         }
                     </ul>
@@ -92,344 +223,28 @@
     </div>
 </div>
 
-<!-- Enhanced Process Modal with Interactive Parsing -->
+<!-- Process Modal -->
 <div class="modal fade" id="processModal" tabindex="-1" role="dialog" aria-labelledby="processModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="processModalLabel">Process Message</h5>
-                <div class="ml-auto d-flex">
-                    <div class="btn-group btn-group-sm mr-3" id="parsing-mode-selector">
-                        <input type="radio" class="btn-check" name="parsing-mode" id="mode-standard" value="standard" checked>
-                        <label class="btn btn-outline-primary" for="mode-standard">
-                            <i class="fas fa-cog"></i> Standard
-                        </label>
-
-                        <input type="radio" class="btn-check" name="parsing-mode" id="mode-interactive" value="interactive">
-                        <label class="btn btn-outline-info" for="mode-interactive">
-                            <i class="fas fa-magic"></i> Interactive
-                        </label>
-                    </div>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-            </div>
-            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
-                <!-- Loading Spinner -->
-                <div id="modal-spinner" class="text-center" style="display: none;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="sr-only">Loading...</span>
-                    </div>
-                    <p class="mt-2">Processing message...</p>
-                </div>
-
-                <!-- Standard Content Area -->
-                <div id="modal-content-area" style="display: none;">
-                    <!-- Standard parsing content will be injected here -->
-                </div>
-
-                <!-- Interactive Parsing Area -->
-                <div id="interactive-parsing-area" style="display: none;">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="card card-primary">
-                                <div class="card-header">
-                                    <h5 class="card-title">
-                                        <i class="fas fa-magic"></i> Interactive Message Parsing
-                                    </h5>
-                                    <div class="card-tools">
-                                        <span class="badge badge-info" id="highlights-count">0 annotations</span>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <div class="alert alert-info alert-sm">
-                                        <i class="fas fa-info-circle"></i>
-                                        <strong>How to use:</strong> Select text with your mouse, then choose entity type from popup menu.
-                                    </div>
-                                    <div id="interactive-text-container">
-                                        <!-- Message text will be inserted here -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="card card-success">
-                                <div class="card-header">
-                                    <h5 class="card-title">
-                                        <i class="fas fa-list"></i> Extracted Data
-                                    </h5>
-                                </div>
-                                <div class="card-body">
-                                    <form id="interactiveProcessForm">
-                                        <input type="hidden" id="interactive-rawMessageId" name="rawMessageId" />
-
-                                        <div class="form-group">
-                                            <label for="interactive-title" class="font-weight-bold">
-                                                <i class="fas fa-tag"></i> Title
-                                            </label>
-                                            <input type="text" id="interactive-title" class="form-control" name="title" />
-                                        </div>
-
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="form-group">
-                                                    <label for="interactive-pricePs4" class="font-weight-bold">
-                                                        <i class="fab fa-playstation"></i> Price PS4
-                                                    </label>
-                                                    <div class="input-group">
-                                                        <div class="input-group-prepend">
-                                                            <span class="input-group-text">$</span>
-                                                        </div>
-                                                        <input type="number" step="0.01" id="interactive-pricePs4" class="form-control" name="pricePs4" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="form-group">
-                                                    <label for="interactive-pricePs5" class="font-weight-bold">
-                                                        <i class="fab fa-playstation"></i> Price PS5
-                                                    </label>
-                                                    <div class="input-group">
-                                                        <div class="input-group-prepend">
-                                                            <span class="input-group-text">$</span>
-                                                        </div>
-                                                        <input type="number" step="0.01" id="interactive-pricePs5" class="form-control" name="pricePs5" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <label for="interactive-region" class="font-weight-bold">
-                                                <i class="fas fa-globe"></i> Region
-                                            </label>
-                                            <input type="text" id="interactive-region" class="form-control" name="region" />
-                                        </div>
-
-                                        <hr />
-
-                                        <div class="form-group">
-                                            <h6>
-                                                <i class="fas fa-gamepad"></i> Games
-                                                (<span id="interactive-game-count" class="text-primary">0</span>)
-                                            </h6>
-                                            <div id="interactive-games-list" class="border rounded p-2" style="min-height: 100px;">
-                                                <p class="text-muted text-center m-2">
-                                                    <i class="fas fa-info-circle"></i><br>
-                                                    Highlight game names in the text to extract them
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Manual Corrections Section -->
-                <div class="col-md-12 mt-3" id="manual-correction-section">
-                    <div class="card card-warning collapsed-card" id="manual-correction-card">
-                        <div class="card-header">
-                            <h3 class="card-title">
-                                <i class="fas fa-hand-paper"></i> Manual Corrections & Missing Items
-                            </h3>
-                            <div class="card-tools">
-                                <span class="badge badge-warning" id="manual-items-count">0 items</span>
-                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="card-body" style="display: none;">
-                            <div class="row">
-                                <!-- Manual Game Addition -->
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="font-weight-bold text-success">
-                                            <i class="fas fa-gamepad"></i> Add Missing Game
-                                        </label>
-                                        <div class="input-group">
-                                            <input type="text" id="manual-game-input" class="form-control" placeholder="Enter full game title...">
-                                            <div class="input-group-append">
-                                                <button class="btn btn-success" type="button" id="add-manual-game-btn">
-                                                    <i class="fas fa-plus"></i> Add
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Manual Region Correction -->
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="font-weight-bold text-info">
-                                            <i class="fas fa-globe"></i> Correct Region
-                                        </label>
-                                        <select id="manual-region-select" class="form-control">
-                                            <option value="">-- Select Region --</option>
-                                            <option value="US">United States (R1)</option>
-                                            <option value="EU">Europe (R2)</option>
-                                            <option value="UK">United Kingdom</option>
-                                            <option value="TR">Turkey</option>
-                                            <option value="IR">Iran</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <!-- Manual Price Corrections -->
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="font-weight-bold text-warning">
-                                            <i class="fas fa-dollar-sign"></i> Correct PS4 Price
-                                        </label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text">$</span>
-                                            </div>
-                                            <input type="number" id="manual-price-ps4" class="form-control" step="0.01" placeholder="Enter price">
-                                            <div class="input-group-append">
-                                                <button class="btn btn-warning btn-sm" type="button" onclick="correctPrice('ps4')">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label class="font-weight-bold text-warning">
-                                            <i class="fas fa-dollar-sign"></i> Correct PS5 Price
-                                        </label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text">$</span>
-                                            </div>
-                                            <input type="number" id="manual-price-ps5" class="form-control" step="0.01" placeholder="Enter price">
-                                            <div class="input-group-append">
-                                                <button class="btn btn-warning btn-sm" type="button" onclick="correctPrice('ps5')">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <hr />
-                            <h6><i class="fas fa-cogs"></i> Corrected/Added Items:</h6>
-                            <div id="manual-items-container" class="mt-2">
-                                <p class="text-muted">No manual corrections added yet.</p>
-                            </div>
-
-                            <!-- Learning Progress -->
-                            <div class="alert alert-info mt-3">
-                                <h6><i class="fas fa-brain"></i> Learning System:</h6>
-                                <p class="mb-2">Your manual corrections help improve automatic parsing for this channel.</p>
-                                <div class="progress mb-2" style="height: 10px;">
-                                    <div class="progress-bar bg-info" id="learning-progress" style="width: 0%"></div>
-                                </div>
-                                <small class="text-muted">
-                                    Channel Learning Score: <span id="channel-learning-score">0%</span>
-                                    | Total Corrections: <span id="total-corrections">0</span>
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">
-                    <i class="fas fa-times"></i> Cancel
-                </button>
-
-                <button type="button" class="btn btn-outline-primary" id="switchToStandardBtn" style="display: none;">
-                    <i class="fas fa-exchange-alt"></i> Switch to Standard
-                </button>
-
-                <button type="button" class="btn btn-outline-info" id="switchToInteractiveBtn" style="display: none;">
-                    <i class="fas fa-magic"></i> Switch to Interactive
-                </button>
-
-                <button type="button" class="btn btn-primary" id="saveAccountBtn">
-                    <i class="fas fa-save"></i> Save Account
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Help Modal for Interactive Parsing -->
-<div class="modal fade" id="helpModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-info">
-                <h5 class="modal-title text-white">
-                    <i class="fas fa-magic"></i> Interactive Parsing Guide
-                </h5>
-                <button type="button" class="close text-white" data-dismiss="modal">
+                <button type="button" class="close" data-dismiss="modal">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-play-circle text-success"></i> How to Use:</h6>
-                        <ol>
-                            <li>Click "Interactive Parse" on any message</li>
-                            <li>Switch to "Interactive" mode using the toggle</li>
-                            <li>Select text with your mouse</li>
-                            <li>Choose the entity type from the popup</li>
-                            <li>Continue annotating the entire message</li>
-                            <li>Review extracted data in the right panel</li>
-                            <li>Use "Manual Corrections" for missing items</li>
-                            <li>Save the account when satisfied</li>
-                        </ol>
-
-                        <h6 class="mt-4"><i class="fas fa-lightbulb text-warning"></i> Tips:</h6>
-                        <ul class="list-unstyled">
-                            <li>• <strong>Games:</strong> Highlight full game titles including editions</li>
-                            <li>• <strong>Prices:</strong> Select just the numbers with currency</li>
-                            <li>• <strong>Platforms:</strong> PS4, PS5, Xbox, PC, etc.</li>
-                            <li>• <strong>Regions:</strong> US, EU, UK, R1, R2, etc.</li>
-                            <li>• <strong>Account Types:</strong> Primary, Secondary, Offline</li>
-                        </ul>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                <div id="modal-spinner" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
                     </div>
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-palette text-primary"></i> Benefits:</h6>
-                        <div class="alert alert-success">
-                            <ul class="list-unstyled mb-0">
-                                <li>• <i class="fas fa-check text-success"></i> No complex regex patterns needed</li>
-                                <li>• <i class="fas fa-check text-success"></i> Visual and intuitive interface</li>
-                                <li>• <i class="fas fa-check text-success"></i> Trains the system over time</li>
-                                <li>• <i class="fas fa-check text-success"></i> Much faster than manual entry</li>
-                                <li>• <i class="fas fa-check text-success"></i> Reduces parsing errors</li>
-                            </ul>
-                        </div>
-
-                        <h6 class="mt-4"><i class="fas fa-brain text-info"></i> Learning System:</h6>
-                        <div class="alert alert-info">
-                            <small>
-                                Your manual corrections are stored as training data. Over time, the system learns
-                                your preferences and becomes more accurate at automatically parsing similar messages
-                                from the same channel. This creates a personalized AI assistant for your workflow!
-                            </small>
-                        </div>
-
-                        <h6 class="mt-3"><i class="fas fa-keyboard text-secondary"></i> Keyboard Shortcuts:</h6>
-                        <small>
-                            <strong>Ctrl+S:</strong> Save Account<br>
-                            <strong>Escape:</strong> Close Modal<br>
-                            <strong>Tab:</strong> Switch between modes
-                        </small>
-                    </div>
+                    <p class="mt-2">Processing...</p>
                 </div>
+                <div id="modal-content-area" style="display: none;"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">
-                    <i class="fas fa-check"></i> Got it, let's start!
-                </button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fas fa-times"></i> Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveAccountBtn"><i class="fas fa-save"></i> Save Account</button>
             </div>
         </div>
     </div>
@@ -438,748 +253,228 @@
 @section Scripts {
     <script>
         $(document).ready(function () {
-            // ==================== GLOBAL STATE ====================
             let shouldReloadPage = false;
             let isProcessing = false;
-            let currentMessageId = null;
-            let currentMessageText = '';
-            let currentParsingMode = 'standard';
-            let manualCorrections = [];
-            let interactiveParsing = null;
+            let currentChannelName = 'N/A';
 
-            // Initialize tooltips
-            $('[data-toggle="tooltip"]').tooltip();
-
-            // ==================== PARSING MODE MANAGEMENT ====================
-            function switchParsingMode(mode) {
-                currentParsingMode = mode;
-
-                if (mode === 'interactive') {
-                    $('#modal-content-area').hide();
-                    $('#interactive-parsing-area').show();
-                    $('#switchToStandardBtn').show();
-                    $('#switchToInteractiveBtn').hide();
-
-                    if (currentMessageText && !interactiveParsing) {
-                        initializeInteractiveParsing();
-                    }
-                } else {
-                    $('#modal-content-area').show();
-                    $('#interactive-parsing-area').hide();
-                    $('#switchToStandardBtn').hide();
-                    $('#switchToInteractiveBtn').show();
-                }
-            }
-
-            // Mode selector event handlers
-            $('input[name="parsing-mode"]').change(function() {
-                switchParsingMode($(this).val());
-            });
-
-            $('#switchToStandardBtn').click(function() {
-                $('input[name="parsing-mode"][value="standard"]').prop('checked', true);
-                switchParsingMode('standard');
-            });
-
-            $('#switchToInteractiveBtn').click(function() {
-                $('input[name="parsing-mode"][value="interactive"]').prop('checked', true);
-                switchParsingMode('interactive');
-            });
-
-            // ==================== INTERACTIVE PARSING ====================
-            function initializeInteractiveParsing() {
-                const container = document.getElementById('interactive-text-container');
-                if (!container || !currentMessageText) return;
-
-                const parsingContainer = document.createElement('div');
-                parsingContainer.id = 'interactive-parsing-container';
-                parsingContainer.className = 'interactive-text-area';
-                parsingContainer.innerHTML = escapeHtml(currentMessageText);
-
-                container.innerHTML = '';
-                container.appendChild(parsingContainer);
-
-                $(parsingContainer).on('mouseup', function(e) {
-                    const selection = window.getSelection();
-                    const selectedText = selection.toString().trim();
-
-                    if (selectedText.length > 0) {
-                        showEntitySelectionMenu(e, selectedText, selection);
-                    }
-                });
-
-                updateHighlightsCount();
-            }
-
-            function showEntitySelectionMenu(event, selectedText, selection) {
-                $('.entity-selection-menu').remove();
-
-                const menu = $(`
-                    <div class="entity-selection-menu" style="
-                        position: absolute;
-                        background: white;
-                        border: 1px solid #ccc;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                        z-index: 9999;
-                        min-width: 180px;
-                    ">
-                        <div class="p-2 border-bottom bg-light">
-                            <small class="text-muted">Selected: "${selectedText.length > 20 ? selectedText.substring(0, 20) + '...' : selectedText}"</small>
-                        </div>
-                        <div class="list-group list-group-flush">
-                            <a href="#" class="list-group-item list-group-item-action" data-entity="game">
-                                <i class="fas fa-gamepad text-success"></i> Game Title
-                            </a>
-                            <a href="#" class="list-group-item list-group-item-action" data-entity="price">
-                                <i class="fas fa-dollar-sign text-warning"></i> Price
-                            </a>
-                            <a href="#" class="list-group-item list-group-item-action" data-entity="platform">
-                                <i class="fas fa-desktop text-info"></i> Platform
-                            </a>
-                            <a href="#" class="list-group-item list-group-item-action" data-entity="region">
-                                <i class="fas fa-globe text-primary"></i> Region
-                            </a>
-                            <a href="#" class="list-group-item list-group-item-action" data-entity="account-type">
-                                <i class="fas fa-user-cog text-secondary"></i> Account Type
-                            </a>
-                        </div>
-                    </div>
-                `);
-
-                menu.css({
-                    left: event.pageX + 10,
-                    top: event.pageY + 10
-                });
-
-                $('body').append(menu);
-
-                menu.find('a').click(function(e) {
-                    e.preventDefault();
-                    const entityType = $(this).data('entity');
-                    highlightSelectedText(selection, selectedText, entityType);
-                    menu.remove();
-                    window.getSelection().removeAllRanges();
-                });
-
-                $(document).one('click', function(e) {
-                    if (!$(e.target).closest('.entity-selection-menu').length) {
-                        menu.remove();
-                    }
-                });
-            }
-
-            function highlightSelectedText(selection, text, entityType) {
-                const range = selection.getRangeAt(0);
-                const span = document.createElement('span');
-                const colors = {
-                    'game': 'rgba(76, 175, 80, 0.3)',
-                    'price': 'rgba(255, 152, 0, 0.3)',
-                    'platform': 'rgba(33, 150, 243, 0.3)',
-                    'region': 'rgba(156, 39, 176, 0.3)',
-                    'account-type': 'rgba(233, 30, 99, 0.3)'
-                };
-
-                span.style.backgroundColor = colors[entityType] || 'rgba(158, 158, 158, 0.3)';
-                span.style.padding = '2px 4px';
-                span.style.borderRadius = '3px';
-                span.style.border = '1px solid ' + (colors[entityType] || '#9e9e9e').replace('0.3', '1');
-                span.setAttribute('data-entity', entityType);
-                span.setAttribute('data-text', text);
-                span.title = `${entityType}: ${text}`;
-
-                try {
-                    range.surroundContents(span);
-                    updateInteractiveData(entityType, text);
-                    updateHighlightsCount();
-                    showToast(`Added ${entityType}: "${text}"`, 'success');
-                } catch (e) {
-                    console.error('Could not highlight overlapping text:', e);
-                    showToast('Cannot highlight overlapping text', 'error');
-                }
-            }
-
-            function updateInteractiveData(entityType, text) {
-                if (entityType === 'game') {
-                    addGameToInteractiveList(text);
-                } else if (entityType === 'price') {
-                    const priceMatch = text.match(/(\d+(?:\.\d+)?)/);
-                    if (priceMatch) {
-                        const price = parseFloat(priceMatch[1]);
-                        if (text.toLowerCase().includes('ps4')) {
-                            $('#interactive-pricePs4').val(price);
-                        } else if (text.toLowerCase().includes('ps5')) {
-                            $('#interactive-pricePs5').val(price);
-                        } else {
-                            $('#interactive-pricePs5').val(price);
-                        }
-                    }
-                } else if (entityType === 'region') {
-                    $('#interactive-region').val(text);
-                }
-            }
-
-            function addGameToInteractiveList(gameTitle) {
-                const gamesList = $('#interactive-games-list');
-                const gameCount = $('#interactive-game-count');
-
-                if (gamesList.find('.game-tag').length === 0) {
-                    gamesList.empty();
-                }
-
-                const gameTag = $(`
-                    <span class="badge badge-success mr-1 mb-1 game-tag" data-game="${escapeHtml(gameTitle)}">
-                        <i class="fas fa-gamepad"></i> ${escapeHtml(gameTitle)}
-                        <button type="button" class="btn btn-xs ml-1 text-white" onclick="removeInteractiveGame('${escapeHtml(gameTitle)}')">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </span>
-                `);
-
-                gamesList.append(gameTag);
-                gameCount.text($('.game-tag').length);
-            }
-
-            window.removeInteractiveGame = function(gameTitle) {
-                $(`.game-tag[data-game="${gameTitle}"]`).remove();
-                $('#interactive-game-count').text($('.game-tag').length);
-
-                if ($('.game-tag').length === 0) {
-                    $('#interactive-games-list').html(`
-                        <p class="text-muted text-center m-2">
-                            <i class="fas fa-info-circle"></i><br>
-                            Highlight game names in the text to extract them
-                        </p>
-                    `);
-                }
-            };
-
-            function updateHighlightsCount() {
-                const count = $('.interactive-text-area [data-entity]').length;
-                $('#highlights-count').text(`${count} annotation${count !== 1 ? 's' : ''}`);
-            }
-
-            // ==================== MANUAL CORRECTION LOGIC ====================
-            $('#add-manual-game-btn').on('click', function() {
-                const gameTitle = $('#manual-game-input').val().trim();
-                if (gameTitle) {
-                    addCorrection('game', gameTitle, 'added');
-                    $('#manual-game-input').val('').focus();
-                    showToast(`Manually added game: ${gameTitle}`, 'success');
-                }
-            });
-
-            $('#manual-region-select').on('change', function() {
-                const region = $(this).val();
-                if (region) {
-                    addCorrection('region', region, 'corrected');
-                    showToast(`Region corrected to: ${region}`, 'success');
-                }
-            });
-
-            window.correctPrice = function(platform) {
-                const price = parseFloat($(`#manual-price-${platform}`).val());
-                if (price && price > 0) {
-                    addCorrection('price', `${platform.toUpperCase()}: $${price}`, 'corrected');
-                    $(`#manual-price-${platform}`).val('');
-                    showToast(`Price corrected for ${platform.toUpperCase()}: $${price}`, 'success');
-                }
-            };
-
-            function addCorrection(type, value, action) {
-                if (manualCorrections.some(c => c.entityType === type && c.value === value)) {
-                    return;
-                }
-
-                manualCorrections.push({
-                    entityType: type,
-                    value: value,
-                    action: action
-                });
-
-                updateManualItemsDisplay();
-            }
-
-            function updateManualItemsDisplay() {
-                const container = $('#manual-items-container');
-                $('#manual-items-count').text(`${manualCorrections.length} items`);
-
-                if (manualCorrections.length === 0) {
-                    container.html('<p class="text-muted">No manual corrections added yet.</p>');
-                    return;
-                }
-
-                let html = '';
-                manualCorrections.forEach((correction, index) => {
-                    let icon = 'fa-pen';
-                    let color = 'info';
-                    if (correction.entityType === 'game') { icon = 'fa-gamepad'; color = 'success'; }
-                    if (correction.entityType === 'price') { icon = 'fa-dollar-sign'; color = 'warning'; }
-                    if (correction.entityType === 'region') { icon = 'fa-globe'; color = 'primary'; }
-
-                    html += `
-                        <span class="badge badge-${color} mr-2 mb-2 p-2 manual-correction-badge">
-                            <i class="fas ${icon}"></i>
-                            <strong>${correction.entityType.toUpperCase()}:</strong> ${escapeHtml(correction.value)}
-                            <button type="button" class="btn btn-xs text-white ml-2" onclick="removeCorrection(${index})">
-                                <i class="fas fa-times-circle"></i>
-                            </button>
-                        </span>`;
-                });
-                container.html(html);
-
-                if (manualCorrections.length > 0) {
-                    $('#manual-correction-card').removeClass('collapsed-card');
-                    $('#manual-correction-card .card-body').show();
-                    $('#manual-correction-card .fa-plus').removeClass('fa-plus').addClass('fa-minus');
-                }
-
-                updateLearningProgress();
-            }
-
-            function updateLearningProgress() {
-                const totalCorrections = manualCorrections.length;
-                const progress = Math.min((totalCorrections * 10), 100);
-
-                $('#learning-progress').css('width', progress + '%');
-                $('#channel-learning-score').text(progress + '%');
-                $('#total-corrections').text(totalCorrections);
-            }
-
-            window.removeCorrection = function(index) {
-                manualCorrections.splice(index, 1);
-                updateManualItemsDisplay();
-                showToast('Correction removed', 'info');
-            };
-
-            // ==================== PROCESS BUTTONS ====================
-            $('body').on('click', '.process-btn', function (e) {
+            $('body').on('click', '.process-btn', function(e) {
                 e.preventDefault();
-                const messageId = $(this).data('message-id');
-                loadMessageForProcessing(messageId, 'standard');
+                currentChannelName = $(this).data('channel-name');
+                loadMessageForProcessing($(this).data('message-id'));
             });
 
-            $('body').on('click', '.interactive-parse-btn', function (e) {
-                e.preventDefault();
-                const messageId = $(this).data('message-id');
-                loadMessageForProcessing(messageId, 'interactive');
+            $(document).on('click', '.delete-game-btn', function() {
+                $(this).closest('li').remove();
+                updateGameCount();
             });
 
-            function loadMessageForProcessing(messageId, initialMode) {
-                currentMessageId = messageId;
-                currentMessageText = '';
+            $('#modal-content-area').on('click', '#add-game-btn', function() {
+                const newItem = createGameListItem('', false);
+                $('#games-list').append(newItem);
+                $('#no-games-msg').remove();
+                updateGameCount();
+            });
+
+            $('#saveAccountBtn').on('click', saveAccount);
+
+            $('#processModal').on('hidden.bs.modal', () => {
+                if (shouldReloadPage) {
+                    showToast('Reloading page...', 'info');
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+            });
+
+            function loadMessageForProcessing(messageId) {
                 shouldReloadPage = false;
                 isProcessing = false;
-                manualCorrections = [];
-                interactiveParsing = null;
-
-                $(`input[name="parsing-mode"][value="${initialMode}"]`).prop('checked', true);
-                currentParsingMode = initialMode;
 
                 $('#modal-spinner').show();
                 $('#modal-content-area').hide();
-                $('#interactive-parsing-area').hide();
-                $('#manual-correction-section').show();
                 $('#processModalLabel').text('Processing Message ID: ' + messageId);
                 $('#processModal').modal('show');
 
-                loadMessageData(messageId);
-            }
-
-            function loadMessageData(messageId) {
                 $.ajax({
                     url: `/Inbox?handler=ProcessPreview&id=${messageId}`,
                     type: 'GET',
-                    timeout: 30000,
-                    success: function (response) {
+                    success: (response) => {
                         if (response && response.success && response.data) {
-                            handleMessageDataLoaded(response.data);
+                            setupModalContent(response.data);
                         } else {
-                            showError(response.message || 'An unknown error occurred during processing.');
+                            showError(response.message || 'An unknown error occurred.');
                         }
                     },
-                    error: function (xhr, status, error) {
-                        let errorMessage = 'Server error occurred.';
-                        if (status === 'timeout') {
-                            errorMessage = 'Request timed out. Please try again.';
-                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
-                            errorMessage = xhr.responseJSON.message;
-                        }
-                        showError(errorMessage);
-                    },
-                    complete: function () {
+                    error: () => showError('Server error occurred.'),
+                    complete: () => {
                         $('#modal-spinner').hide();
-                        switchParsingMode(currentParsingMode);
+                        $('#modal-content-area').show();
                     }
                 });
             }
 
-            function handleMessageDataLoaded(data) {
-                currentMessageText = data.fullDescription || '';
-                setupStandardParsingContent(data);
-                setupInteractiveParsingData(data);
-                updateManualItemsDisplay();
-            }
-
-            function setupStandardParsingContent(data) {
-                function safeValue(value, fallback = '') {
-                    if (typeof value === 'string') return value.replace(/"/g, '&quot;');
-                    return value !== null && value !== undefined ? value : fallback;
-                }
-
-                const gamesHtml = data.games && data.games.length > 0
-                    ? data.games.map(game => {
-                        const badgeClass = game.existsInDb ? 'badge-success' : 'badge-secondary';
-                        const iconClass = game.existsInDb ? 'fa-check-circle' : 'fa-plus-circle';
-                        const tooltip = game.existsInDb ? 'Game exists in database' : 'New game will be added';
-
-                        return `
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div class="flex-grow-1 mr-2">
-                                    <input type="text" class="form-control form-control-sm game-title-input" value="${safeValue(game.title)}" />
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="badge ${badgeClass} mr-2" title="${tooltip}">
-                                        <i class="fas ${iconClass}"></i>
-                                    </span>
-                                    <button type="button" class="btn btn-sm btn-danger delete-game-btn" title="Remove game">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            </li>
-                        `;
-                    }).join('')
-                    : '<li class="list-group-item text-muted">No games automatically detected.</li>';
+            function setupModalContent(data) {
+                const sortedGames = data.games ? data.games.sort((a, b) => a.existsInDb - b.existsInDb) : [];
+                const gamesHtml = sortedGames.length > 0
+                    ? sortedGames.map(game => createGameListItem(game.title, game.existsInDb)).join('')
+                    : '<li class="list-group-item text-muted text-center" id="no-games-msg">No games detected.</li>';
 
                 const contentHtml = `
                     <div class="row">
-                        <div class="col-md-7">
-                            <div class="card card-info">
-                                <div class="card-header">
-                                    <h5 class="card-title">
-                                        <i class="fas fa-envelope"></i> Original Message Text
-                                    </h5>
-                                </div>
-                                <div class="card-body" style="max-height: 50vh; overflow-y: auto;">
-                                    <pre id="raw-text-display" style="white-space: pre-wrap; word-break: break-word; font-size: 0.9rem; background-color: #f8f9fa; padding: 1rem; border-radius: 0.375rem;">${safeValue(data.fullDescription)}</pre>
+                        <div class="col-md-5">
+                            <div class="card card-outline card-info">
+                                <div class="card-header"><h5 class="card-title"><i class="fas fa-envelope"></i> Original Message</h5></div>
+                                <div class="card-body" style="max-height: 60vh; overflow-y: auto;">
+                                    <pre style="white-space: pre-wrap; font-size: 0.85rem;">${safeValue(data.fullDescription)}</pre>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-5">
-                            <div class="card card-success">
-                                <div class="card-header">
-                                    <h5 class="card-title">
-                                        <i class="fas fa-cog"></i> Extracted Data
-                                    </h5>
-                                </div>
-                                <div class="card-body" style="max-height: 50vh; overflow-y: auto;">
+                        <div class="col-md-7">
+                            <div class="card card-outline card-success">
+                                <div class="card-header"><h5 class="card-title"><i class="fas fa-cog"></i> Extracted Data</h5></div>
+                                <div class="card-body" style="max-height: 60vh; overflow-y: auto;">
                                     <form id="processForm">
-                                        <input type="hidden" id="form-rawMessageId" name="rawMessageId" value="${data.rawMessageId}" />
-
-                                        <div class="form-group">
-                                            <label for="form-title" class="font-weight-bold">
-                                                <i class="fas fa-tag"></i> Title
-                                            </label>
-                                            <input type="text" id="form-title" class="form-control" name="title" value="${safeValue(data.title)}" />
-                                        </div>
-
+                                        <input type="hidden" id="form-rawMessageId" value="${data.rawMessageId}" />
+                                        <div class="form-group"><label class="font-weight-bold"><i class="fas fa-tag"></i> Title</label><input type="text" id="form-title" class="form-control" readonly /></div>
                                         <div class="row">
-                                            <div class="col-6">
+                                            <div class="col-md-6"><div class="form-group"><label><i class="fab fa-playstation"></i> Price PS4</label><input type="number" step="0.01" id="form-pricePs4" class="form-control" value="${safeValue(data.pricePs4)}"/></div></div>
+                                            <div class="col-md-6"><div class="form-group"><label><i class="fab fa-playstation"></i> Price PS5</label><input type="number" step="0.01" id="form-pricePs5" class="form-control" value="${safeValue(data.pricePs5)}"/></div></div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6"><div class="form-group"><label><i class="fas fa-globe"></i> Region</label><input type="text" id="form-region" class="form-control" value="${safeValue(data.region)}"/></div></div>
+                                            <div class="col-md-6">
                                                 <div class="form-group">
-                                                    <label for="form-pricePs4" class="font-weight-bold">
-                                                        <i class="fab fa-playstation"></i> Price PS4
-                                                    </label>
-                                                    <div class="input-group">
-                                                        <div class="input-group-prepend">
-                                                            <span class="input-group-text">$</span>
-                                                        </div>
-                                                        <input type="number" step="0.01" id="form-pricePs4" class="form-control" name="pricePs4" value="${safeValue(data.pricePs4)}" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="form-group">
-                                                    <label for="form-pricePs5" class="font-weight-bold">
-                                                        <i class="fab fa-playstation"></i> Price PS5
-                                                    </label>
-                                                    <div class="input-group">
-                                                        <div class="input-group-prepend">
-                                                            <span class="input-group-text">$</span>
-                                                        </div>
-                                                        <input type="number" step="0.01" id="form-pricePs5" class="form-control" name="pricePs5" value="${safeValue(data.pricePs5)}" />
-                                                    </div>
+                                                    <label for="form-capacity"><i class="fas fa-hdd"></i> Capacity</label>
+                                                    <select id="form-capacity" class="form-control">
+                                                        <option value="Unknown" ${data.capacity === 'Unknown' ? 'selected' : ''}>Unknown</option>
+                                                        <option value="Z1" ${data.capacity === 'Z1' ? 'selected' : ''}>Z1 (Offline Only)</option>
+                                                        <option value="Z2" ${data.capacity === 'Z2' ? 'selected' : ''}>Z2 (Online & Offline)</option>
+                                                        <option value="Z3" ${data.capacity === 'Z3' ? 'selected' : ''}>Z3 (Online Only)</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div class="form-group">
-                                            <label for="form-region" class="font-weight-bold">
-                                                <i class="fas fa-globe"></i> Region
-                                            </label>
-                                            <input type="text" id="form-region" class="form-control" name="region" value="${safeValue(data.region)}" />
-                                        </div>
-
-                                        <div class="form-group">
-                                            <h6 class="font-weight-bold">
-                                                <i class="fas fa-gamepad"></i> Games
-                                                (<span id="games-count" class="text-primary">${data.games ? data.games.length : 0}</span>)
-                                            </h6>
-                                            <ul class="list-group" id="games-list">
-                                                ${gamesHtml}
-                                            </ul>
-                                        </div>
+                                        <div class="form-group"><label><i class="fas fa-user-tie"></i> Seller Info</label><input type="text" id="form-sellerInfo" class="form-control" value="${safeValue(data.sellerInfo)}"/></div>
+                                        <div class="form-group"><label><i class="fas fa-info-circle"></i> Additional Info</label><textarea id="form-additionalInfo" class="form-control" rows="2">${safeValue(data.additionalInfo)}</textarea></div>
+                                        <hr/>
+                                        <div class="form-group"><label class="font-weight-bold"><i class="fas fa-gamepad"></i> Games (<span id="games-count">0</span>)</label><ul class="list-group mb-2" id="games-list">${gamesHtml}</ul><button type="button" class="btn btn-sm btn-outline-primary" id="add-game-btn"><i class="fas fa-plus"></i> Add Game</button></div>
                                     </form>
                                 </div>
                             </div>
                         </div>
                     </div>`;
-
                 $('#modal-content-area').html(contentHtml);
+                updateGameCount();
             }
 
-            function setupInteractiveParsingData(data) {
-                $('#interactive-rawMessageId').val(currentMessageId);
-                $('#interactive-title').val(data.title || '');
-                $('#interactive-pricePs4').val(data.pricePs4 || '');
-                $('#interactive-pricePs5').val(data.pricePs5 || '');
-                $('#interactive-region').val(data.region || '');
+            function createGameListItem(title, existsInDb) {
+                const safeTitle = safeValue(title);
+                const itemClass = existsInDb ? 'list-group-item-success' : '';
+                const inputHtml = existsInDb
+                    ? `<input type="text" class="form-control form-control-sm" value="${safeTitle}" readonly><input type="hidden" class="game-title-input" value="${safeTitle}">`
+                    : `<input type="text" class="form-control form-control-sm game-title-input" value="${safeTitle}" placeholder="Enter game title">`;
 
-                updateInteractiveGamesList(data.games ? data.games.map(g => g.title) : []);
+                return `<li class="list-group-item d-flex justify-content-between align-items-center p-2 ${itemClass}"><div class="flex-grow-1 mr-2">${inputHtml}</div><button type="button" class="btn btn-sm btn-danger delete-game-btn" title="Remove"><i class="fas fa-times"></i></button></li>`;
             }
 
-            function updateInteractiveGamesList(games) {
-                const gamesList = $('#interactive-games-list');
-                const gameCount = $('#interactive-game-count');
-
-                gameCount.text(games.length);
-
-                if (games.length === 0) {
-                    gamesList.html(`
-                        <p class="text-muted text-center m-2">
-                            <i class="fas fa-info-circle"></i><br>
-                            Highlight game names in the text to extract them
-                        </p>
-                    `);
-                } else {
-                    let gamesHtml = '';
-                    games.forEach(game => {
-                        gamesHtml += `
-                            <span class="badge badge-success mr-1 mb-1 game-tag" data-game="${escapeHtml(game)}">
-                                <i class="fas fa-gamepad"></i> ${escapeHtml(game)}
-                                <button type="button" class="btn btn-xs ml-1 text-white" onclick="removeInteractiveGame('${escapeHtml(game)}')">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </span>
-                        `;
-                    });
-                    gamesList.html(gamesHtml);
-                }
-            }
-
-            function showError(message) {
-                $('#modal-content-area').html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle"></i> ${message}
-                    </div>
-                `);
-                $('#interactive-parsing-area').html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle"></i> ${message}
-                    </div>
-                `);
-            }
-
-            // ==================== SAVE FUNCTIONALITY ====================
-            $('#saveAccountBtn').on('click', function() {
+            function saveAccount() {
                 if (isProcessing) return;
-
-                if (currentParsingMode === 'interactive') {
-                    saveInteractiveAccount();
-                } else {
-                    saveStandardAccount();
-                }
-            });
-
-            function saveInteractiveAccount() {
-                isProcessing = true;
-                showLoadingState(true);
-
-                const form = $('#interactiveProcessForm');
-                const games = $('.game-tag').map(function() {
-                    return $(this).data('game');
-                }).get();
-
-                const formData = {
-                    rawMessageId: parseInt(form.find('#interactive-rawMessageId').val()),
-                    title: form.find('#interactive-title').val().trim(),
-                    pricePs4: parseFloat(form.find('#interactive-pricePs4').val()) || null,
-                    pricePs5: parseFloat(form.find('#interactive-pricePs5').val()) || null,
-                    region: form.find('#interactive-region').val().trim(),
-                    gameTitles: games,
-                    manualCorrections: manualCorrections
-                };
-
-                saveFormData(formData);
-            }
-
-            function saveStandardAccount() {
                 isProcessing = true;
                 showLoadingState(true);
 
                 const form = $('#processForm');
-
                 const formData = {
                     rawMessageId: parseInt(form.find('#form-rawMessageId').val()),
                     title: form.find('#form-title').val().trim(),
                     pricePs4: parseFloat(form.find('#form-pricePs4').val()) || null,
                     pricePs5: parseFloat(form.find('#form-pricePs5').val()) || null,
                     region: form.find('#form-region').val().trim(),
-                    gameTitles: [],
-                    manualCorrections: manualCorrections
+                    capacity: form.find('#form-capacity').val(),
+                    sellerInfo: form.find('#form-sellerInfo').val().trim(),
+                    additionalInfo: form.find('#form-additionalInfo').val().trim(),
+                    gameTitles: Array.from($('#games-list .game-title-input')).map(el => $(el).val().trim()).filter(Boolean)
                 };
 
-                $('#games-list .game-title-input').each(function() {
-                    const title = $(this).val().trim();
-                    if (title !== '') {
-                        formData.gameTitles.push(title);
-                    }
-                });
-
-                saveFormData(formData);
-            }
-
-            function saveFormData(formData) {
                 if (!formData.title) {
-                    showToast('Title is required.', 'error');
-                    showLoadingState(false);
+                    showToast('Title cannot be empty.', 'error');
                     isProcessing = false;
+                    showLoadingState(false);
                     return;
                 }
 
-                const token = $('form[method="post"] input[name="__RequestVerificationToken"]').val();
+                if (!formData.rawMessageId || formData.rawMessageId <= 0) {
+                    showToast('Invalid message ID.', 'error');
+                    isProcessing = false;
+                    showLoadingState(false);
+                    return;
+                }
 
                 $.ajax({
                     url: '/Inbox?handler=ProcessAndSave',
                     type: 'POST',
                     contentType: 'application/json',
-                    timeout: 30000,
-                    headers: { 'RequestVerificationToken': token },
+                    headers: {
+                        'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                    },
                     data: JSON.stringify(formData),
-                    success: function(response) {
+                    success: (response) => {
                         if (response.success) {
                             shouldReloadPage = true;
                             showToast('Account saved successfully!', 'success');
                             $('#processModal').modal('hide');
                         } else {
-                            showToast('Error: ' + (response.message || "An unknown error occurred while saving."), 'error');
-                            showLoadingState(false);
-                            isProcessing = false;
+                            showToast(response.message || "An unknown error occurred.", 'error');
                         }
                     },
-                    error: function(xhr, status, error) {
-                        let errorMessage = 'A server error occurred. Please try again.';
-                        if (status === 'timeout') {
-                            errorMessage = 'Request timed out. Please try again.';
-                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
-                            errorMessage = xhr.responseJSON.message;
-                        }
-                        showToast(errorMessage, 'error');
-                        showLoadingState(false);
+                    error: (xhr, status, error) => {
+                        showToast(`Server error: ${error}`, 'error');
+                    },
+                    complete: () => {
                         isProcessing = false;
+                        showLoadingState(false);
                     }
                 });
             }
 
-            // ==================== HELPER FUNCTIONS ====================
-            function showLoadingState(show) {
-                const saveBtn = $('#saveAccountBtn');
-                if (show) {
-                    saveBtn.prop('disabled', true);
-                    saveBtn.html('<i class="fas fa-spinner fa-spin"></i> Saving...');
-                } else {
-                    saveBtn.prop('disabled', false);
-                    saveBtn.html('<i class="fas fa-save"></i> Save Account');
+            function updateGameCount() {
+                const count = $('#games-list .game-title-input').length;
+                $('#games-count').text(count);
+                if(count === 0 && $('#no-games-msg').length === 0){
+                    $('#games-list').html('<li class="list-group-item text-muted text-center" id="no-games-msg">No games detected.</li>');
                 }
+                updateDynamicTitle();
+            }
+
+            function updateDynamicTitle() {
+                const gameCount = $('#games-list .game-title-input').length;
+                $('#form-title').val(`${currentChannelName} - ${gameCount} Games`);
+            }
+
+            function safeValue(value, fallback = '') {
+                return value !== null && value !== undefined ? String(value).replace(/"/g, '&quot;') : fallback;
+            }
+
+            function showError(message) {
+                $('#modal-content-area').html(`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`);
+            }
+
+            function showLoadingState(show) {
+                const btn = $('#saveAccountBtn');
+                btn.prop('disabled', show);
+                btn.html(show ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Account');
             }
 
             function showToast(message, type = 'success') {
                 if (typeof $(document).Toasts === 'function') {
                     $(document).Toasts('create', {
-                        class: type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info',
-                        title: type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Info',
-                        subtitle: new Date().toLocaleTimeString(),
+                        class: `bg-${type === 'success' ? 'success' : 'danger'}`,
+                        title: type.charAt(0).toUpperCase() + type.slice(1),
+                        subtitle: 'Just now',
                         body: message,
                         autohide: true,
-                        delay: type === 'error' ? 5000 : 3000
+                        delay: 3000,
                     });
                 } else {
                     alert(`[${type.toUpperCase()}] ${message}`);
                 }
-            }
-
-            function escapeHtml(text) {
-                const map = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#039;'
-                };
-                return (text || '').replace(/[&<>"']/g, function(m) { return map[m]; });
-            }
-
-            // ==================== MODAL CLEANUP ====================
-            $('#processModal').on('hidden.bs.modal', function () {
-                isProcessing = false;
-                showLoadingState(false);
-                manualCorrections = [];
-                interactiveParsing = null;
-                currentMessageText = '';
-
-                $('.entity-selection-menu').remove();
-
-                if (shouldReloadPage) {
-                    showToast('Reloading page...', 'info');
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 1000);
-                }
-            });
-
-            // Dynamic game deletion in standard mode
-            $(document).on('click', '.delete-game-btn', function() {
-                $(this).closest('li').remove();
-                updateGameCount();
-            });
-
-            function updateGameCount() {
-                const count = $('#games-list .game-title-input').length;
-                $('#games-count').text(count);
-            }
-
-            // ==================== KEYBOARD SHORTCUTS ====================
-            $(document).on('keydown', function(e) {
-                if (e.ctrlKey && e.key === 's' && $('#processModal').hasClass('show')) {
-                    e.preventDefault();
-                    $('#saveAccountBtn').click();
-                }
-                if (e.key === 'Escape' && $('#processModal').hasClass('show')) {
-                    $('#processModal').modal('hide');
-                }
-                if (e.key === 'Tab' && $('#processModal').hasClass('show')) {
-                    e.preventDefault();
-                    const currentMode = currentParsingMode;
-                    const newMode = currentMode === 'standard' ? 'interactive' : 'standard';
-                    $(`input[name="parsing-mode"][value="${newMode}"]`).prop('checked', true);
-                    switchParsingMode(newMode);
-                }
-            });
-
-            // Initialize tooltips
-            if (typeof $().tooltip === 'function') {
-                $('[title]').tooltip({
-                    delay: { show: 500, hide: 100 }
-                });
             }
         });
     </script>

@@ -2,27 +2,40 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-namespace PsnAccountManager.Admin.Panel.Pages.Accounts;
-
-public class DetailsModel : PageModel
+namespace PsnAccountManager.Admin.Panel.Pages.Accounts
 {
-    private readonly IAccountRepository _accountRepository;
-    private readonly ILogger<DetailsModel> _logger;
-
-    public Account Account { get; set; }
-
-    public DetailsModel(IAccountRepository accountRepository, ILogger<DetailsModel> logger)
+    public class DetailsModel : PageModel
     {
-        _accountRepository = accountRepository;
-        _logger = logger;
-    }
+        private readonly IAccountRepository _accountRepository;
+        private readonly IAccountHistoryRepository _historyRepository;
 
-    public async Task<IActionResult> OnGetAsync(int? id)
-    {
-        if (id == null) return NotFound();
-        Account = await _accountRepository.GetAccountWithAllDetailsAsync(id.Value);
-        if (Account == null) return NotFound();
-        return Page();
+        public DetailsModel(
+            IAccountRepository accountRepository,
+            IAccountHistoryRepository historyRepository)
+        {
+            _accountRepository = accountRepository;
+            _historyRepository = historyRepository;
+        }
+
+        public Account Account { get; set; }
+        public List<AccountHistory> History { get; set; } = new List<AccountHistory>();
+
+        public async Task<IActionResult> OnGetAsync(int id)
+        {
+            Account = await _accountRepository.GetAccountWithAllDetailsAsync(id);
+
+            if (Account == null)
+            {
+                return NotFound();
+            }
+
+            // Load the change history for this account separately
+            History = await _historyRepository.GetHistoryForAccountAsync(id);
+
+            return Page();
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using PsnAccountManager.Shared.DTOs;
+
 namespace PsnAccountManager.Application.Interfaces;
 
 /// <summary>

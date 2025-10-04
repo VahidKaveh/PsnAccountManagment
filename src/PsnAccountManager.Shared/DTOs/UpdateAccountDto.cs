@@ -1,5 +1,5 @@
-﻿using PsnAccountManager.Shared.Enums;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
+using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Shared.DTOs;
 
@@ -26,8 +26,7 @@ public class UpdateAccountDto
     [Display(Name = "Price (PS5)")]
     public decimal? PricePs5 { get; set; }
 
-    [StringLength(100)]
-    public string? Region { get; set; }
+    [StringLength(100)] public string? Region { get; set; }
 
     [Display(Name = "Includes Original Mail")]
     public bool HasOriginalMail { get; set; }
@@ -40,15 +39,13 @@ public class UpdateAccountDto
     [Display(Name = "Seller Info (e.g., Telegram @username)")]
     public string? SellerInfo { get; set; }
 
-    [Required]
-    public AccountCapacity Capacity { get; set; }
+    [Required] public AccountCapacity Capacity { get; set; }
 
     [Required]
     [Display(Name = "Stock Status")]
     public StockStatus StockStatus { get; set; }
 
-    [Display(Name = "Is Deleted")]
-    public bool IsDeleted { get; set; }
+    [Display(Name = "Is Deleted")] public bool IsDeleted { get; set; }
 
     /// <summary>
     /// The full list of Game IDs that should be associated with this account after the update.

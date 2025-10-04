@@ -1,6 +1,6 @@
-﻿using PsnAccountManager.Shared.Enums;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Shared.DTOs;
 
@@ -9,8 +9,7 @@ namespace PsnAccountManager.Shared.DTOs;
 /// </summary>
 public class CreateAccountDto
 {
-    [Required]
-    public int ChannelId { get; set; }
+    [Required] public int ChannelId { get; set; }
 
     [Required(ErrorMessage = "A title is required.")]
     [StringLength(500, ErrorMessage = "Title cannot be longer than 500 characters.")]
@@ -31,8 +30,7 @@ public class CreateAccountDto
     [Display(Name = "Price (PS5)")]
     public decimal? PricePs5 { get; set; }
 
-    [StringLength(100)]
-    public string? Region { get; set; }
+    [StringLength(100)] public string? Region { get; set; }
 
     [Display(Name = "Includes Original Mail")]
     public bool HasOriginalMail { get; set; }
@@ -45,8 +43,7 @@ public class CreateAccountDto
     [Display(Name = "Seller Info (e.g., Telegram @username)")]
     public string? SellerInfo { get; set; }
 
-    [Required]
-    public AccountCapacity Capacity { get; set; }
+    [Required] public AccountCapacity Capacity { get; set; }
 
     [Required]
     [Display(Name = "Stock Status")]
@@ -56,4 +53,9 @@ public class CreateAccountDto
     /// A list of Game IDs to associate with this new account.
     /// </summary>
     public List<int> GameIds { get; set; } = new();
+
+    public List<string> GameTitles { get; set; }
+
+    [Display(Name = "Additional Info for this account")]
+    public string AdditionalInfo { get; set; }
 }

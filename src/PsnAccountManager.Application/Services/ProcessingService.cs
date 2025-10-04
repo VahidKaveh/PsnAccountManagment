@@ -1,188 +1,301 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.DTOs;
 using PsnAccountManager.Shared.Enums;
 using PsnAccountManager.Shared.ViewModels;
-using System.Text.RegularExpressions;
+using System.Text;
 
 namespace PsnAccountManager.Application.Services;
 
+/// <summary>
+/// Coordinates the process of parsing messages, creating/updating accounts,
+/// and managing related entities in a transactional manner.
+/// Enhanced with change detection and admin notifications.
+/// </summary>
 public class ProcessingService : IProcessingService
 {
     private readonly IRawMessageRepository _rawMessageRepo;
     private readonly IMessageParser _messageParser;
-    private readonly IChannelRepository _channelRepo;
     private readonly IAccountRepository _accountRepository;
     private readonly IGameRepository _gameRepository;
     private readonly ILogger<ProcessingService> _logger;
-    private readonly IAdminNotificationRepository _notificationRepository;
 
+    // ==================== NEW SERVICES FOR CHANGE DETECTION ====================
+    private readonly IChangeDetectionService _changeDetectionService;
+    private readonly IAdminNotificationRepository _notificationRepository;
+    private readonly IChannelRepository _channelRepository;
+    private readonly IConfiguration _configuration;
 
     public ProcessingService(
         IRawMessageRepository rawMessageRepo,
         IMessageParser messageParser,
-        IChannelRepository channelRepo,
         IAccountRepository accountRepository,
         IGameRepository gameRepository,
-        ILogger<ProcessingService> logger)
+        ILogger<ProcessingService> logger,
+        IChangeDetectionService changeDetectionService,
+        IAdminNotificationRepository notificationRepository,
+        IChannelRepository channelRepository,
+        IConfiguration configuration)
     {
         _rawMessageRepo = rawMessageRepo;
         _messageParser = messageParser;
-        _channelRepo = channelRepo;
         _accountRepository = accountRepository;
         _gameRepository = gameRepository;
         _logger = logger;
+        _changeDetectionService = changeDetectionService;
+        _notificationRepository = notificationRepository;
+        _channelRepository = channelRepository;
+        _configuration = configuration;
     }
 
+    /// <summary>
+    /// Processes a raw message with change detection capabilities
+    /// </summary>
+    public async Task<ProcessingResult> ProcessRawMessageAsync(int rawMessageId)
+    {
+        var rawMessage = await _rawMessageRepo.GetByIdAsync(rawMessageId);
+        if (rawMessage == null)
+        {
+            _logger.LogWarning("RawMessage with ID {RawMessageId} not found", rawMessageId);
+            return new ProcessingResult { Success = false, ErrorMessage = "Raw message not found." };
+        }
+
+        try
+        {
+            // ==================== STEP 1: GENERATE CONTENT HASH ====================
+            var contentHash = _changeDetectionService.GenerateContentHash(rawMessage.MessageText);
+            rawMessage.ContentHash = contentHash;
+
+            // ==================== STEP 2: CHECK FOR CHANGES ====================
+            var hasChanged = await _changeDetectionService.HasContentChangedAsync(
+                rawMessage.ChannelId,
+                rawMessage.ExternalMessageId.ToString(),
+                contentHash);
+
+            if (hasChanged)
+            {
+                _logger.LogInformation("Content change detected for message {MessageId} from channel {ChannelId}",
+                    rawMessageId, rawMessage.ChannelId);
+
+                // Mark as change and get previous message for comparison
+                rawMessage.IsChange = true;
+                var previousMessage = await _changeDetectionService.GetPreviousMessageAsync(
+                    rawMessage.ChannelId,
+                    rawMessage.ExternalMessageId.ToString());
+
+                if (previousMessage != null)
+                {
+                    rawMessage.PreviousMessageId = previousMessage.Id;
+                }
+
+                // Parse both old and new data for detailed change detection
+                var newParsedData = await _messageParser.ParseAccountMessageAsync(rawMessage.MessageText);
+                ParsedAccountDto? oldParsedData = null;
+
+                if (previousMessage != null)
+                {
+                    oldParsedData = await _messageParser.ParseAccountMessageAsync(previousMessage.MessageText);
+                }
+
+                // Detect specific changes
+                var changeDetails = _changeDetectionService.DetectChanges(oldParsedData, newParsedData);
+
+                // Store change details
+                rawMessage.ChangeDetails = changeDetails.ToJson();
+
+                // Create admin notification if significant changes detected
+                if (changeDetails.HasChanges && ShouldNotifyAdminOfChanges())
+                {
+                    await CreateChangeNotificationAsync(rawMessage, changeDetails, previousMessage);
+                }
+
+                // Determine processing strategy
+                if (ShouldAutoProcessChanges())
+                {
+                    rawMessage.Status = RawMessageStatus.Pending; // Process normally
+                    _logger.LogDebug("Auto-processing change for message {MessageId}", rawMessageId);
+                }
+                else
+                {
+                    rawMessage.Status = RawMessageStatus.PendingChange; // Queue for manual review
+                    _logger.LogInformation("Change queued for manual review: message {MessageId}", rawMessageId);
+                }
+            }
+            else
+            {
+                // No change detected, process normally
+                rawMessage.Status = RawMessageStatus.Pending;
+                _logger.LogDebug("No content change detected for message {MessageId}", rawMessageId);
+            }
+
+            // Save the updated raw message
+            _rawMessageRepo.Update(rawMessage);
+            await _rawMessageRepo.SaveChangesAsync();
+
+            // ==================== STEP 3: CONTINUE PROCESSING IF APPROPRIATE ====================
+            if (rawMessage.Status == RawMessageStatus.Pending)
+            {
+                return await ProcessMessageContentAsync(rawMessage);
+            }
+
+            return new ProcessingResult
+            {
+                Success = true,
+                ErrorMessage = rawMessage.Status == RawMessageStatus.PendingChange
+                    ? "Change detected and queued for review"
+                    : "Message processed successfully",
+                IsChange = rawMessage.IsChange
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing raw message {RawMessageId}", rawMessageId);
+
+            rawMessage.Status = RawMessageStatus.Failed;
+            _rawMessageRepo.Update(rawMessage);
+            await _rawMessageRepo.SaveChangesAsync();
+
+            return new ProcessingResult
+            {
+                Success = false,
+                ErrorMessage = $"Processing failed: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Processes the actual message content after change detection
+    /// </summary>
+    private async Task<ProcessingResult> ProcessMessageContentAsync(RawMessage rawMessage)
+    {
+        try
+        {
+            // Get channel info
+            var channel = await _channelRepository.GetByIdAsync(rawMessage.ChannelId);
+            if (channel == null)
+            {
+                _logger.LogError("Channel {ChannelId} not found for message {MessageId}",
+                    rawMessage.ChannelId, rawMessage.Id);
+                return new ProcessingResult { Success = false, ErrorMessage = "Channel not found" };
+            }
+
+            // Parse the message
+            var parsedData = await _messageParser.ParseAccountMessageAsync(rawMessage.MessageText);
+            if (parsedData == null)
+            {
+                _logger.LogDebug("Message {MessageId} could not be parsed as account data", rawMessage.Id);
+                rawMessage.Status = RawMessageStatus.Ignored;
+                _rawMessageRepo.Update(rawMessage);
+                await _rawMessageRepo.SaveChangesAsync();
+                return new ProcessingResult { Success = true, ErrorMessage = "Message ignored - not account data" };
+            }
+
+            // Set the RawMessageId for tracking
+            parsedData.RawMessageId = rawMessage.Id;
+
+            // Create ViewModel for processing
+            var viewModel = new ProcessMessageViewModel
+            {
+                RawMessageId = rawMessage.Id,
+                Title = parsedData.Title ?? "",
+                PricePs4 = parsedData.PricePs4,
+                PricePs5 = parsedData.PricePs5,
+                Region = parsedData.Region ?? "",
+                SellerInfo = parsedData.SellerInfo ?? "",
+                AdditionalInfo = parsedData.AdditionalInfo ?? "",
+                GameTitles = parsedData.ExtractedGames ?? new List<string>()
+            };
+
+            // Process the account data
+            var result = await ProcessAndSaveAccountAsync(viewModel);
+
+            // Update message status based on result
+            rawMessage.Status = result.Success ? RawMessageStatus.Processed : RawMessageStatus.Failed;
+            _rawMessageRepo.Update(rawMessage);
+            await _rawMessageRepo.SaveChangesAsync();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing message content for {MessageId}", rawMessage.Id);
+            return new ProcessingResult { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Gets a preview of parsed data from a raw message without saving anything.
+    /// </summary>
     public async Task<ParsedAccountDto?> GetParsedDataPreviewAsync(int rawMessageId)
     {
         var rawMessage = await _rawMessageRepo.GetByIdAsync(rawMessageId);
-        if (rawMessage == null) return null;
-
-        var channel = await _channelRepo.GetChannelWithProfileAsync(rawMessage.ChannelId);
-        if (channel?.ParsingProfile?.Rules == null || !channel.ParsingProfile.Rules.Any()) return null;
-
-        var parsedDto = _messageParser.Parse(rawMessage.MessageText, rawMessage.ExternalMessageId.ToString(),
-            channel.ParsingProfile.Rules);
-        if (parsedDto == null) return null;
-
-        // --- New, robust logic to extract the games block ---
-        string textToProcess = rawMessage.MessageText;
-        var rules = channel.ParsingProfile.Rules;
-
-        // 1. Find the end of the games block first
-        var endPattern = rules.FirstOrDefault(r => r.FieldType == ParsedFieldType.GamesBlockEnd)?.RegexPattern;
-        if (!string.IsNullOrEmpty(endPattern))
+        if (rawMessage == null)
         {
-            var endMatch = Regex.Match(textToProcess, endPattern, RegexOptions.Multiline);
-            if (endMatch.Success)
+            _logger.LogWarning("RawMessage with ID {Id} not found for preview.", rawMessageId);
+            return null;
+        }
+
+        var parsedDto = await _messageParser.ParseAccountMessageAsync(rawMessage.MessageText);
+        if (parsedDto == null)
+        {
+            _logger.LogWarning("MessageParser failed to parse message ID {Id}.", rawMessageId);
+            return null;
+        }
+
+        // Enrich the DTO with additional info needed for the view
+        parsedDto.RawMessageId = rawMessageId;
+
+        var gamesWithStatus = new List<GamePreviewDto>();
+        if (parsedDto.ExtractedGames != null)
+            foreach (var title in parsedDto.ExtractedGames)
             {
-                textToProcess = textToProcess.Substring(0, endMatch.Index);
+                var gameExists = await _gameRepository.FindByTitleAsync(title) != null;
+                gamesWithStatus.Add(new GamePreviewDto { Title = title, ExistsInDb = gameExists });
             }
-        }
 
-        // 2. Find the start of the games block
-        var startPattern = rules.FirstOrDefault(r => r.FieldType == ParsedFieldType.GamesBlockStart)?.RegexPattern;
-        if (!string.IsNullOrEmpty(startPattern))
-        {
-            var startMatch = Regex.Match(textToProcess, startPattern, RegexOptions.Multiline);
-            if (startMatch.Success)
-            {
-                textToProcess = textToProcess.Substring(startMatch.Index + startMatch.Length);
-            }
-        }
-
-        var gameTitlesFromBlock = textToProcess
-            .Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => CleanGameTitle(line.Trim()))
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .ToList();
-
-        _logger.LogInformation("Found {Count} game titles after processing the block.", gameTitlesFromBlock.Count);
-
-        var finalGamesList = new List<ParsedGameViewModel>();
-        foreach (var title in gameTitlesFromBlock)
-        {
-            var existingGame = await _gameRepository.FindByTitleAsync(title);
-            finalGamesList.Add(new ParsedGameViewModel { Title = title, ExistsInDb = existingGame != null });
-        }
-
-        parsedDto.ExtractedGames = finalGamesList
-            .OrderBy(g => g.ExistsInDb)
-            .Select(g => g.Title) 
-            .ToList();
-
-        parsedDto.Title = finalGamesList.Any() ? $"{channel.Name} #{rawMessage.ExternalMessageId} ({finalGamesList.Count} Games)" : $"Account from {channel.Name} #{rawMessage.ExternalMessageId}";
+        parsedDto.Games = gamesWithStatus;
 
         return parsedDto;
     }
 
+    /// <summary>
+    /// Processes and saves an account from the submitted view model data.
+    /// It handles both creation of new accounts and updates to existing ones.
+    /// </summary>
     public async Task<ProcessingResult> ProcessAndSaveAccountAsync(ProcessMessageViewModel viewModel)
     {
         var rawMessage = await _rawMessageRepo.GetByIdAsync(viewModel.RawMessageId);
         if (rawMessage == null)
+            return new ProcessingResult { Success = false, ErrorMessage = "The original message could not be found." };
+
+        var existingAccount =
+            await _accountRepository.GetByExternalIdAsync(rawMessage.ChannelId,
+                rawMessage.ExternalMessageId.ToString());
+
+        try
         {
-            _logger.LogError("Cannot save account. RawMessage with ID {MessageId} not found.", viewModel.RawMessageId);
-            return new ProcessingResult { Success = false };
+            if (existingAccount != null)
+                return await UpdateExistingAccount(existingAccount, viewModel);
+            else
+                return await CreateNewAccount(viewModel, rawMessage);
         }
-
-        var channel = await _channelRepo.GetChannelWithProfileAsync(rawMessage.ChannelId);
-        if (channel?.ParsingProfile == null)
+        catch (Exception ex)
         {
-            _logger.LogError("Cannot save account. No valid parsing profile for Channel ID {ChannelId}.",
-                rawMessage.ChannelId);
-            return new ProcessingResult { Success = false };
+            _logger.LogError(ex, "Failed to save changes to the database for message {MessageId}",
+                viewModel.RawMessageId);
+            return new ProcessingResult
+            { Success = false, ErrorMessage = "A database error occurred while saving. See logs for details." };
         }
-
-        // --- Step 1: Re-parse the raw text to get all details, not just what's in the ViewModel ---
-        var parsedData = _messageParser.Parse(rawMessage.MessageText, rawMessage.ExternalMessageId.ToString(),
-            channel.ParsingProfile.Rules);
-        if (parsedData == null) return new ProcessingResult { Success = false };
-
-        var existingAccount = await _accountRepository.GetByExternalIdAsync(rawMessage.ChannelId, rawMessage.ExternalMessageId.ToString());
-
-        ProcessingResult result;
-        if (existingAccount != null)
-        {
-            result = await UpdateExistingAccount(existingAccount, viewModel, parsedData, rawMessage);
-        }
-        else
-        {
-            result = await CreateNewAccount(viewModel, parsedData, rawMessage, channel);
-        }
-
-        if (result.Success)
-        {
-            rawMessage.Status = RawMessageStatus.Processed;
-            _rawMessageRepo.Update(rawMessage);
-            await _rawMessageRepo.SaveChangesAsync();
-        }
-
-        return result;
     }
 
-    private AccountCapacity MapCapacityInfoToEnum(string? capacityInfo)
-    {
-        if (string.IsNullOrWhiteSpace(capacityInfo))
-        {
-            return AccountCapacity.Unknown;
-        }
-
-        var lowerCaseInfo = capacityInfo.ToLower();
-
-        if (lowerCaseInfo.Contains("z1") || lowerCaseInfo.Contains("offline"))
-        {
-            return AccountCapacity.OfflineOnly;
-        }
-
-        if (lowerCaseInfo.Contains("z2") || lowerCaseInfo.Contains("capacity 2"))
-        {
-            return AccountCapacity.Primary;
-        }
-
-        if (lowerCaseInfo.Contains("z3") || lowerCaseInfo.Contains("capacity 3") || lowerCaseInfo.Contains("full"))
-        {
-            return AccountCapacity.Tertiary; // Capacity 3 is often considered Full Access
-        }
-
-        // Add more rules here as you discover new formats
-
-        return AccountCapacity.Unknown; // Default fallback
-    }
-
-    private string CleanGameTitle(string title)
-    {
-        var platformSuffixRegex = new Regex(@"\s+(PS[45]|P[45])(\s*&\s*(PS[45]|P[45]))?$", RegexOptions.IgnoreCase);
-        return platformSuffixRegex.Replace(title, "").Trim();
-    }
-
-    private async Task<ProcessingResult> CreateNewAccount(ProcessMessageViewModel viewModel, ParsedAccountDto parsedData,
-        RawMessage rawMessage, Channel channel)
+    private async Task<ProcessingResult> CreateNewAccount(ProcessMessageViewModel viewModel, RawMessage rawMessage)
     {
         _logger.LogInformation("Creating new account from RawMessage ID: {RawMessageId}", rawMessage.Id);
-        var gameEntities = await GetOrCreateGames(viewModel.ExtractedGames);
+
+        var gameEntities = await GetOrCreateGamesAsync(viewModel.GameTitles);
 
         var newAccount = new Account
         {
@@ -193,23 +306,25 @@ public class ProcessingService : IProcessingService
             PricePs4 = viewModel.PricePs4,
             PricePs5 = viewModel.PricePs5,
             Region = viewModel.Region,
-            AdditionalInfo = parsedData.AdditionalInfo,
-            HasOriginalMail = parsedData.HasOriginalMail,
-            GuaranteeMinutes = parsedData.GuaranteeMinutes,
-            SellerInfo = parsedData.SellerInfo,
-            Capacity = MapCapacityInfoToEnum(parsedData.CapacityInfo),
-            LastScrapedAt = rawMessage.ReceivedAt,
-            StockStatus = parsedData.IsSold ? StockStatus.OutOfStock : StockStatus.InStock,
-            IsDeleted = false
+            StockStatus = StockStatus.InStock,
+            SellerInfo = viewModel.SellerInfo,
+            AdditionalInfo = viewModel.AdditionalInfo,
+            CreatedAt = DateTime.UtcNow,
+            LastScrapedAt = DateTime.UtcNow
         };
 
         foreach (var game in gameEntities)
-        {
-            newAccount.AccountGames.Add(new AccountGame { GameId = game.Id });
-        }
+            newAccount.AccountGames.Add(new AccountGame { Game = game });
 
         await _accountRepository.AddAsync(newAccount);
-        // SaveChanges will be called by the parent method
+
+        rawMessage.Status = RawMessageStatus.Processed;
+        _rawMessageRepo.Update(rawMessage);
+
+        await _rawMessageRepo.SaveChangesAsync();
+
+        _logger.LogInformation("Successfully created new account '{AccountTitle}' (ID: {AccountId})",
+            newAccount.Title, newAccount.Id);
 
         return new ProcessingResult
         {
@@ -220,95 +335,150 @@ public class ProcessingService : IProcessingService
         };
     }
 
-    private async Task<ProcessingResult> UpdateExistingAccount(Account existingAccount, ProcessMessageViewModel viewModel,
-        ParsedAccountDto parsedData, RawMessage rawMessage)
+    private async Task<ProcessingResult> UpdateExistingAccount(Account existingAccount,
+        ProcessMessageViewModel viewModel)
     {
         _logger.LogInformation("Updating existing Account ID: {AccountId}", existingAccount.Id);
-        var changes = new List<ChangeInfo>();
 
-        // Check for changes and update properties
-        CheckForChange(changes, existingAccount, "PricePs4", viewModel.PricePs4);
-        CheckForChange(changes, existingAccount, "PricePs5", viewModel.PricePs5);
-        CheckForChange(changes, existingAccount, "Title", viewModel.Title);
-        CheckForChange(changes, existingAccount, "Region", viewModel.Region);
-        var newStockStatus = parsedData.IsSold ? StockStatus.OutOfStock : StockStatus.InStock;
-        CheckForChange(changes, existingAccount, "StockStatus", newStockStatus);
+        existingAccount.Title = viewModel.Title;
+        existingAccount.PricePs4 = viewModel.PricePs4;
+        existingAccount.PricePs5 = viewModel.PricePs5;
+        existingAccount.Region = viewModel.Region;
+        existingAccount.SellerInfo = viewModel.SellerInfo;
+        existingAccount.AdditionalInfo = viewModel.AdditionalInfo;
+        existingAccount.UpdatedAt = DateTime.UtcNow;
+        existingAccount.LastScrapedAt = DateTime.UtcNow;
 
-        if (changes.Any())
-        {
-            existingAccount.RecentChanges = string.Join(", ", changes.Select(c => c.FieldName));
-            foreach (var change in changes)
-            {
-                existingAccount.History.Add(new AccountHistory
-                {
-                    FieldName = change.FieldName,
-                    OldValue = change.OldValue,
-                    NewValue = change.NewValue,
-                    ChangedBy = "Scraper"
-                });
-            }
-        }
+        var gameEntities = await GetOrCreateGamesAsync(viewModel.GameTitles);
 
-        // Sync games list
-        var submittedGameEntities = await GetOrCreateGames(viewModel.ExtractedGames);
-        var existingGameIds = existingAccount.AccountGames.Select(ag => ag.GameId).ToHashSet();
-        var submittedGameIds = submittedGameEntities.Select(g => g.Id).ToHashSet();
-
-        // Remove games that are no longer in the list
-        var gamesToRemove = existingAccount.AccountGames.Where(ag => !submittedGameIds.Contains(ag.GameId)).ToList();
-        foreach (var gameToRemove in gamesToRemove) existingAccount.AccountGames.Remove(gameToRemove);
-
-        // Add new games
-        var gameIdsToAdd = submittedGameIds.Where(id => !existingGameIds.Contains(id));
-        foreach (var gameId in gameIdsToAdd) existingAccount.AccountGames.Add(new AccountGame { GameId = gameId });
+        existingAccount.AccountGames.Clear();
+        foreach (var game in gameEntities)
+            existingAccount.AccountGames.Add(new AccountGame { Account = existingAccount, Game = game });
 
         _accountRepository.Update(existingAccount);
+
+        var rawMessage = await _rawMessageRepo.GetByIdAsync(viewModel.RawMessageId);
+        if (rawMessage != null)
+        {
+            rawMessage.Status = RawMessageStatus.Processed;
+            _rawMessageRepo.Update(rawMessage);
+        }
+
+        await _rawMessageRepo.SaveChangesAsync();
+
+        _logger.LogInformation("Successfully updated account '{AccountTitle}' (ID: {AccountId})",
+            existingAccount.Title, existingAccount.Id);
+
         return new ProcessingResult
         {
             Success = true,
             IsNewAccount = false,
             AccountId = existingAccount.Id,
-            AccountTitle = existingAccount.Title,
-            DetectedChanges = changes
+            AccountTitle = existingAccount.Title
         };
     }
 
-    private async Task<List<Game>> GetOrCreateGames(IEnumerable<string> titles)
+    /// <summary>
+    /// Retrieves existing games or prepares new Game entities to be saved.
+    /// It does not save them immediately to allow for a single transaction.
+    /// </summary>
+    private async Task<List<Game>> GetOrCreateGamesAsync(List<string> titles)
     {
         var gameEntities = new List<Game>();
-        var distinctTitles = titles.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+        if (titles == null || !titles.Any()) return gameEntities;
+
+        var distinctTitles =
+            titles.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase);
 
         foreach (var title in distinctTitles)
         {
             var game = await _gameRepository.FindByTitleAsync(title);
             if (game == null)
-            {
+                // Create a new entity, but don't add it to the context here.
+                // EF Core will detect it as a new entity when it's part of the Account's navigation property.
                 game = new Game { Title = title };
-                await _gameRepository.AddAsync(game);
-                await _gameRepository.SaveChangesAsync(); // Save immediately to get an ID
-            }
-
             gameEntities.Add(game);
         }
 
         return gameEntities;
     }
 
-    private void CheckForChange<T>(List<ChangeInfo> changes, Account account, string fieldName, T newValue)
-    {
-        var prop = typeof(Account).GetProperty(fieldName);
-        var oldValue = (T)prop.GetValue(account);
+    // ==================== CHANGE DETECTION HELPER METHODS ====================
 
-        if (!EqualityComparer<T>.Default.Equals(oldValue, newValue))
+    private async Task CreateChangeNotificationAsync(RawMessage changedMessage, ChangeDetails changes, RawMessage? previousMessage)
+    {
+        try
         {
-            changes.Add(new ChangeInfo
+            var channel = await _channelRepository.GetByIdAsync(changedMessage.ChannelId);
+            var channelName = channel?.Name ?? "Unknown Channel";
+
+            var notification = new AdminNotification
             {
-                FieldName = fieldName,
-                OldValue = oldValue?.ToString(),
-                NewValue = newValue?.ToString()
-            });
-            prop.SetValue(account, newValue);
+                Type = AdminNotificationType.AccountChanged,
+                Title = $"Account Updated in {channelName}",
+                Message = FormatChangeMessage(changes, changedMessage.ExternalMessageId),
+                RelatedEntityId = changedMessage.Id,
+                RelatedEntityType = "RawMessage",
+                Priority = DetermineNotificationPriority(changes),
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _notificationRepository.AddAsync(notification);
+            await _notificationRepository.SaveChangesAsync();
+
+            _logger.LogInformation("Created admin notification for change in message {MessageId}", changedMessage.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating change notification for message {MessageId}", changedMessage.Id);
+            // Don't throw - notification failure shouldn't break processing
         }
     }
+
+    private string FormatChangeMessage(ChangeDetails changes, long externalId)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Account {externalId} has been updated:");
+        sb.AppendLine($"Change Type: {changes.ChangeType}");
+        sb.AppendLine();
+
+        foreach (var change in changes.Changes.Take(5)) // Limit to first 5 changes
+        {
+            sb.AppendLine($"• {change.Field}: {change.OldValue} → {change.NewValue}");
+        }
+
+        if (changes.Changes.Count > 5)
+        {
+            sb.AppendLine($"• ... and {changes.Changes.Count - 5} more changes");
+        }
+
+        return sb.ToString();
+    }
+
+    private NotificationPriority DetermineNotificationPriority(ChangeDetails changes)
+    {
+        // High priority for sold status or significant price changes
+        if (changes.ChangeType == ChangeType.Deleted)
+            return NotificationPriority.High;
+
+        if (changes.ChangeType == ChangeType.PriceChanged)
+            return NotificationPriority.Normal;
+
+        return NotificationPriority.Low;
+    }
+
+    private bool ShouldAutoProcessChanges()
+    {
+        var section = _configuration.GetSection("ChangeDetectionSettings:AutoProcessChanges");
+        return section.Exists() && bool.Parse(section.Value ?? "false");
+    }
+
+    private bool ShouldNotifyAdminOfChanges()
+    {
+        var section = _configuration.GetSection("ChangeDetectionSettings:NotifyAdminOnChanges");
+        return !section.Exists() || bool.Parse(section.Value ?? "true");
+    }
+
+
 }

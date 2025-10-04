@@ -1,11 +1,11 @@
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
 using PsnAccountManager.Shared.Enums;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 
 namespace PsnAccountManager.Admin.Panel.Pages.Channels;
 
@@ -14,8 +14,7 @@ public class CreateModel : PageModel
     private readonly IChannelRepository _channelRepository;
     private readonly IParsingProfileRepository _profileRepository;
 
-    [BindProperty]
-    public InputModel Input { get; set; }
+    [BindProperty] public InputModel Input { get; set; }
 
     public SelectList ParsingProfiles { get; set; }
 
@@ -25,11 +24,9 @@ public class CreateModel : PageModel
         [Display(Name = "Channel Name (e.g., 'psngames_sell')")]
         public string Name { get; set; }
 
-        [Required]
-        public ChannelStatus Status { get; set; }
+        [Required] public ChannelStatus Status { get; set; }
 
-        [Display(Name = "Parsing Profile")]
-        public int? ParsingProfileId { get; set; }
+        [Display(Name = "Parsing Profile")] public int? ParsingProfileId { get; set; }
 
         [Required]
         [Display(Name = "Fetch Mode")]

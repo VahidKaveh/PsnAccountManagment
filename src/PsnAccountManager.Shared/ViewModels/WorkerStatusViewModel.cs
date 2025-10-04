@@ -1,5 +1,5 @@
-﻿using PsnAccountManager.Shared.Enums;
-using System;
+﻿using System;
+using PsnAccountManager.Shared.Enums;
 
 namespace PsnAccountManager.Shared.ViewModels;
 

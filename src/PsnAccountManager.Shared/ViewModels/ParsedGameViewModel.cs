@@ -8,8 +8,12 @@ public class ParsedGameViewModel
     public bool ExistsInDb { get; set; }
 
     public static implicit operator string(ParsedGameViewModel game)
-        => game.Title;
+    {
+        return game.Title;
+    }
 
     public static implicit operator ParsedGameViewModel(string title)
-        => new() { Title = title };
+    {
+        return new ParsedGameViewModel { Title = title };
+    }
 }

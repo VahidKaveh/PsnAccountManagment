@@ -1,6 +1,6 @@
-﻿using PsnAccountManager.Domain.Entities;
+﻿using System.Linq.Expressions;
+using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Shared.Enums;
-using System.Linq.Expressions;
 
 namespace PsnAccountManager.Domain.Interfaces;
 

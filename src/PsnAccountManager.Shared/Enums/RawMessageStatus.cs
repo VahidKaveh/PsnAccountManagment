@@ -5,5 +5,6 @@ public enum RawMessageStatus
     Pending,
     Processed,
     Ignored,
-    Failed
+    Failed,
+    PendingChange = 4
 }

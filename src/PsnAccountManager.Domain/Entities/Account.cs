@@ -1,4 +1,5 @@
 ﻿using PsnAccountManager.Shared.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace PsnAccountManager.Domain.Entities;
 
@@ -30,6 +31,10 @@ public class Account : BaseEntity<int>
     public DateTime LastScrapedAt { get; set; }
     public string? RecentChanges { get; set; }
     public string? AdditionalInfo { get; set; }
+
+    [MaxLength(1000)]
+    public string? Notes { get; set; }
+
 
     // Processing Information
     public DateTime? ProcessedAt { get; set; }

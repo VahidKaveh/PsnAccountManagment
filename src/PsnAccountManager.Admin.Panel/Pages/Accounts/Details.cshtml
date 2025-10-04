@@ -14,16 +14,33 @@
                     <h3 class="profile-username text-center" style="word-break: break-word;">@Model.Account.Title</h3>
                     <p class="text-muted text-center">From: @Model.Account.Channel?.Name</p>
                     <ul class="list-group list-group-unbordered mb-3">
-                        <li class="list-group-item"><b>Status</b> <a class="float-right">@Model.Account.StockStatus</a></li>
-                        <li class="list-group-item"><b>Price (PS4)</b> <a class="float-right">@(Model.Account.PricePs4?.ToString("C") ?? "N/A")</a></li>
-                        <li class="list-group-item"><b>Price (PS5)</b> <a class="float-right">@(Model.Account.PricePs5?.ToString("C") ?? "N/A")</a></li>
-                        <li class="list-group-item"><b>Region</b> <a class="float-right">@Model.Account.Region</a></li>
-                        <li class="list-group-item"><b>Recent Changes</b> <a class="float-right">@Model.Account.RecentChanges</a></li>
                         <li class="list-group-item">
-                            <b>Additional Info</b> <a class="float-right">@Model.Account.AdditionalInfo</a>
+                            <b>Status</b> <a class="float-right">@Model.Account.StockStatus</a>
+                        </li>
+                        <li class="list-group-item">
+                            <b>Price (PS4)</b> <a class="float-right">@(Model.Account.PricePs4?.ToString("C") ?? "N/A")</a>
+                        </li>
+                        <li class="list-group-item">
+                            <b>Price (PS5)</b> <a class="float-right">@(Model.Account.PricePs5?.ToString("C") ?? "N/A")</a>
+                        </li>
+                        <li class="list-group-item">
+                            <b>Region</b> <a class="float-right">@Model.Account.Region</a>
+                        </li>
+                        <li class="list-group-item">
+                            <b>Capacity</b> <a class="float-right">@Model.Account.Capacity</a>
+                        </li>
+                        <li class="list-group-item">
+                            <b>Seller</b> <a class="float-right">@(Model.Account.SellerInfo ?? "N/A")</a>
                         </li>
                     </ul>
-                    <a asp-page="./Edit" asp-route-id="@Model.Account.Id" class="btn btn-primary btn-block"><b>Edit Account</b></a>
+                    <div class="mt-3">
+                        <a asp-page="./Edit" asp-route-id="@Model.Account.Id" class="btn btn-primary btn-block mb-2">
+                            <b><i class="fas fa-edit mr-1"></i> Edit Account</b>
+                        </a>
+                        <a asp-page="./Index" class="btn btn-secondary btn-block">
+                            <i class="fas fa-arrow-left mr-1"></i> Back to List
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -39,27 +56,27 @@
                 <div class="card-body">
                     <div class="tab-content">
                         <div class="active tab-pane" id="detailsTab">
-                            <h5><i class="bi bi-controller mr-1"></i> Associated Games (@Model.Account.AccountGames.Count)</h5>
+                            <h5><i class="fas fa-gamepad mr-1"></i> Associated Games (@Model.Account.AccountGames.Count)</h5>
                             @if (Model.Account.AccountGames != null && Model.Account.AccountGames.Any())
                             {
-                                <ul class="list-group list-group-flush mb-4">
-                                    @foreach (var game in Model.Account.AccountGames.Take(5))
+                                <ul class="list-group list-group-flush mb-3">
+                                    @foreach (var game in Model.Account.AccountGames.Take(6))
                                     {
-                                        <li class="list-group-item">@(game.Game?.Title ?? "Game Title Missing")</li>
+                                        <li class="list-group-item py-2">@(game.Game?.Title ?? "Game Title Missing")</li>
                                     }
                                 </ul>
-                                @if (Model.Account.AccountGames.Count > 5)
+                                @if (Model.Account.AccountGames.Count > 6)
                                 {
                                     <div class="collapse" id="moreGames">
-                                        <ul class="list-group list-group-flush mb-4">
-                                            @foreach (var game in Model.Account.AccountGames.Skip(5))
+                                        <ul class="list-group list-group-flush mb-3">
+                                            @foreach (var game in Model.Account.AccountGames.Skip(6))
                                             {
-                                                <li class="list-group-item">@(game.Game?.Title ?? "Game Title Missing")</li>
+                                                <li class="list-group-item py-2">@(game.Game?.Title ?? "Game Title Missing")</li>
                                             }
                                         </ul>
                                     </div>
-                                    <button class="btn btn-sm btn-secondary" type="button" data-toggle="collapse" data-target="#moreGames" aria-expanded="false" aria-controls="moreGames">
-                                        Show @(Model.Account.AccountGames.Count - 5) more games...
+                                    <button class="btn btn-sm btn-link pl-0" type="button" data-toggle="collapse" data-target="#moreGames" aria-expanded="false" aria-controls="moreGames">
+                                        Show @(Model.Account.AccountGames.Count - 6) more games...
                                     </button>
                                 }
                             }
@@ -68,14 +85,18 @@
                                 <p class="text-muted">No games are linked to this account.</p>
                             }
                             <hr>
-                            <h5><i class="bi bi-file-text-fill mr-1"></i> Original Post Content</h5>
-                            <pre style="white-space: pre-wrap; word-break: break-word; font-size: 0.9rem;">@Model.Account.Description</pre>
+                            <h5><i class="fas fa-file-alt mr-1"></i> Original Post Content</h5>
+                            <div id="postContentContainer" style="max-height: 200px; overflow: hidden; position: relative;">
+                                <pre id="postContent" style="white-space: pre-wrap; word-break: break-word; font-size: 0.9rem;">@Model.Account.Description</pre>
+                                <div id="postContentFade" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 50px; background: linear-gradient(to bottom, transparent, white);"></div>
+                            </div>
+                            <button id="showMorePost" class="btn btn-sm btn-link pl-0 mt-2">Show More</button>
                         </div>
                         <div class="tab-pane" id="historyTab">
-                            @if (Model.Account.History != null && Model.Account.History.Any())
+                            @if (Model.History != null && Model.History.Any())
                             {
                                 <div class="timeline">
-                                    @foreach (var item in Model.Account.History)
+                                    @foreach (var item in Model.History)
                                     {
                                         <div>
                                             <i class="fas fa-edit bg-primary"></i>
@@ -83,18 +104,17 @@
                                                 <span class="time"><i class="fas fa-clock"></i> @item.ChangedAt.ToLocalTime().ToString("g")</span>
                                                 <h3 class="timeline-header no-border">Field <strong>@item.FieldName</strong> was changed by <strong>@item.ChangedBy</strong></h3>
                                                 <div class="timeline-body">
-                                                    <span class="text-danger">Old Value:</span> <code>@(item.OldValue ?? "N/A")</code><br />
-                                                    <span class="text-success">New Value:</span> <code>@(item.NewValue ?? "N/A")</code>
+                                                    <dl><dt class="text-danger">Old Value</dt><dd><code>@(item.OldValue ?? "N/A")</code></dd><dt class="text-success">New Value</dt><dd><code>@(item.NewValue ?? "N/A")</code></dd></dl>
                                                 </div>
                                             </div>
                                         </div>
                                     }
+                                    <div><i class="fas fa-clock bg-gray"></i></div>
                                 </div>
                             }
                             else
                             {
-
-                                <p class="text-muted text-center">No changes have been recorded for this account.</p>
+                                <p class="text-muted text-center mt-4">No changes have been recorded.</p>
                             }
                         </div>
                     </div>
@@ -105,17 +125,43 @@
 }
 else
 {
-    <div class="alert alert-danger"><h4><i class="icon bi bi-exclamation-triangle-fill"></i> Account Not Found</h4></div>
+    <div class="alert alert-danger"><h4><i class="icon fas fa-ban"></i> Error!</h4> Account not found.</div>
 }
 
 @section Scripts {
     <script>
-        // Optional: Change button text after expanding
-        $('#moreGames').on('show.bs.collapse', function () {
-            $('button[data-target="#moreGames"]').text('Show fewer games...');
-        }).on('hide.bs.collapse', function () {
-            var remaining = @(Model.Account?.AccountGames.Count - 5 ?? 0);
-            $('button[data-target="#moreGames"]').text('Show ' + remaining + ' more games...');
+        $(document).ready(function() {
+            // "Show More" for games
+            $('#moreGames').on('show.bs.collapse', function () {
+                $('button[data-target="#moreGames"]').text('Show less');
+            }).on('hide.bs.collapse', function () {
+                var remaining = @(Model.Account?.AccountGames.Count - 6 ?? 0);
+                $('button[data-target="#moreGames"]').text('Show ' + remaining + ' more games...');
+            });
+
+            // "Show More" for post content
+            var postContainer = $('#postContentContainer');
+            var showMoreBtn = $('#showMorePost');
+            var fadeEffect = $('#postContentFade');
+
+            if (postContainer[0].scrollHeight <= postContainer.innerHeight()) {
+                showMoreBtn.hide();
+                fadeEffect.hide();
+            }
+
+            showMoreBtn.on('click', function() {
+                if (postContainer.hasClass('expanded')) {
+                    postContainer.animate({ 'max-height': '200px' }, 200);
+                    fadeEffect.fadeIn();
+                    $(this).text('Show More');
+                } else {
+                    postContainer.animate({ 'max-height': postContainer[0].scrollHeight }, 200);
+                    fadeEffect.fadeOut();
+                    $(this).text('Show Less');
+                }
+                postContainer.toggleClass('expanded');
+            });
         });
     </script>
 }
+
