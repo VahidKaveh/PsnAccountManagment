@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using PsnAccountManager.Application.Interfaces;
 using PsnAccountManager.Domain.Entities;
 using PsnAccountManager.Domain.Interfaces;
@@ -39,12 +39,24 @@ namespace PsnAccountManager.Application.Services
         {
             try
             {
+                _logger.LogDebug("Checking content changes for Channel:{ChannelId}, ExternalId:{ExternalId}", 
+                    channelId, externalId);
+                
                 var lastMessage = await _rawMessageRepo.GetByExternalIdAsync(channelId, externalId);
 
                 if (lastMessage == null)
+                {
+                    _logger.LogInformation("No previous message found for {ChannelId}:{ExternalId}, treating as new", 
+                        channelId, externalId);
                     return true; // First message, treat as new
+                }
 
-                return lastMessage.ContentHash != newHash;
+                var hasChanged = lastMessage.ContentHash != newHash;
+                
+                _logger.LogDebug("Content change check result: {HasChanged}. Old hash: {OldHash}, New hash: {NewHash}", 
+                    hasChanged, lastMessage.ContentHash, newHash);
+                
+                return hasChanged;
             }
             catch (Exception ex)
             {
@@ -76,6 +88,7 @@ namespace PsnAccountManager.Application.Services
             if (oldData == null && newData != null)
             {
                 changes.ChangeType = ChangeType.New;
+                _logger.LogInformation("Detected new account: {ExternalId}", newData.ExternalId);
                 return changes;
             }
 
@@ -83,6 +96,7 @@ namespace PsnAccountManager.Application.Services
             if (oldData != null && newData == null)
             {
                 changes.ChangeType = ChangeType.Deleted;
+                _logger.LogInformation("Detected deleted account: {ExternalId}", oldData.ExternalId);
                 return changes;
             }
 
@@ -100,6 +114,12 @@ namespace PsnAccountManager.Application.Services
             if (changes.HasChanges)
             {
                 changes.ChangeType = DetermineChangeType(changes);
+                _logger.LogInformation("Detected changes in account {ExternalId}: {ChangeType}, Total changes: {Count}", 
+                    newData!.ExternalId, changes.ChangeType, changes.Changes.Count);
+            }
+            else
+            {
+                changes.ChangeType = ChangeType.NoChange;
             }
 
             return changes;
@@ -110,13 +130,15 @@ namespace PsnAccountManager.Application.Services
             if (string.IsNullOrEmpty(messageText))
                 return string.Empty;
 
-            // **FIX: Don't convert to lowercase for hash generation**
-            // Convert to lowercase will make different content produce same hash
+            // FIXED: More comprehensive normalization for better change detection
             return messageText
+                .ToLowerInvariant() // Convert to lowercase for consistent comparison
                 .Replace("\r\n", "\n")
                 .Replace("\r", "\n")
                 .Replace("\t", " ")
-                .Trim();
+                .Replace("  ", " ") // Replace double spaces with single
+                .Trim()
+                .Normalize(); // Unicode normalization
         }
 
         private void CompareAccountFields(ParsedAccountDto oldData, ParsedAccountDto newData, ChangeDetails changes)
@@ -141,11 +163,16 @@ namespace PsnAccountManager.Application.Services
                     TruncateForDisplay(newData.FullDescription, 100));
             }
 
-            // Compare IsSold status
+            // Compare IsSold status - THIS IS CRITICAL FOR CHANGE DETECTION
             if (oldData.IsSold != newData.IsSold)
             {
                 changes.AddChange("SoldStatus",
                     oldData.IsSold ? "Sold" : "Available",
+                    newData.IsSold ? "Sold" : "Available");
+                    
+                _logger.LogInformation("IMPORTANT: Sold status changed for {ExternalId}: {OldStatus} -> {NewStatus}", 
+                    newData.ExternalId, 
+                    oldData.IsSold ? "Sold" : "Available", 
                     newData.IsSold ? "Sold" : "Available");
             }
 
@@ -155,15 +182,15 @@ namespace PsnAccountManager.Application.Services
                 changes.AddChange("Region", oldData.Region, newData.Region);
             }
 
-            // Compare Prices
-            if (oldData.PricePs4 != newData.PricePs4)
+            // Compare Prices - SENSITIVE TO SMALL CHANGES
+            if (Math.Abs((oldData.PricePs4 ?? 0) - (newData.PricePs4 ?? 0)) > 0.01m)
             {
                 changes.AddChange("PricePS4",
                     FormatPrice(oldData.PricePs4),
                     FormatPrice(newData.PricePs4));
             }
 
-            if (oldData.PricePs5 != newData.PricePs5)
+            if (Math.Abs((oldData.PricePs5 ?? 0) - (newData.PricePs5 ?? 0)) > 0.01m)
             {
                 changes.AddChange("PricePS5",
                     FormatPrice(oldData.PricePs5),
