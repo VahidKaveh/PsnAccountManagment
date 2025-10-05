@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PsnAccountManager.Application.Interfaces;
@@ -239,9 +239,16 @@ public class IndexModel : PageModel
 
             if (result != null && result.Success)
             {
+                // دریافت پیام مرتبط
+                var rawMessage = await _rawMessageRepository.GetByIdAsync(viewModel.RawMessageId);
+                if (rawMessage != null)
+                {
+                    rawMessage.Status = RawMessageStatus.Processed; 
+                    rawMessage.ProcessedAt = DateTime.UtcNow;
+                    _rawMessageRepository.Update(rawMessage);
+                    await _rawMessageRepository.SaveChangesAsync();
+                }
                 StatusMessage = $"Message ID {viewModel.RawMessageId} processed. Account '{result.AccountTitle}' saved.";
-                _logger.LogInformation("Successfully processed message {MessageId}. Account: {AccountTitle}",
-                    viewModel.RawMessageId, result.AccountTitle);
                 return new JsonResult(new { success = true });
             }
             else

@@ -370,8 +370,6 @@ public class RawMessageRepository : GenericRepository<RawMessage, int>, IRawMess
             }
         }
 
-    // ============== NEW METHODS - پیاده‌سازی متدهای مفقود ==============
-    
     /// <summary>
     /// Gets total message count across all statuses
     /// </summary>

@@ -391,7 +391,7 @@ public class AccountRepository : GenericRepository<Account, int>, IAccountReposi
         }
     }
 
-    // ============== NEW METHOD - پیاده‌سازی متد مفقود ==============
+ 
     
     /// <summary>
     /// Gets all accounts for a specific channel (for simple matching)
@@ -405,7 +405,7 @@ public class AccountRepository : GenericRepository<Account, int>, IAccountReposi
                 .AsNoTracking()
                 .Include(a => a.Channel)
                 .Where(a => a.ChannelId == channelId)
-                .OrderByDescending(a => a.LastScrapedAt) // FIXED: چون هر دو non-nullable هستند، فقط LastScrapedAt استفاده می‌کنیم
+                .OrderByDescending(a => a.LastScrapedAt) 
                 .ToListAsync();
         }
         catch (Exception ex)

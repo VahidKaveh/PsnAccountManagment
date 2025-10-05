@@ -434,6 +434,18 @@ public class ProcessingService : IProcessingService
     {
         try
         {
+            // بررسی اکانت مرتبط (در صورت وجود)
+            if (relatedEntityType == "Account" && relatedEntityId.HasValue)
+            {
+                
+                var account = await _accountRepository.GetByIdAsync(relatedEntityId.Value);
+                if (account != null)
+                {
+                    var rawMessage = await _rawMessageRepo.GetByExternalIdAsync(account.ChannelId, account.ExternalId);
+                    if (rawMessage.Status != null &&
+                        rawMessage.Status==RawMessageStatus.Processed) {return;}
+                }
+            }
             var notification = new AdminNotification
             {
                 Type = type,
@@ -460,7 +472,6 @@ public class ProcessingService : IProcessingService
         }
     }
 
-    // ==================== EXISTING METHODS (Enhanced with Repository Methods) ====================
 
     /// <summary>
     /// Processes a raw message with change detection capabilities
@@ -823,8 +834,6 @@ public class ProcessingService : IProcessingService
 
         return gameEntities;
     }
-
-    // ==================== CHANGE DETECTION HELPER METHODS ====================
 
     private async Task CreateChangeNotificationAsync(RawMessage changedMessage, ChangeDetails changes, RawMessage? previousMessage)
     {
